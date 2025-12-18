@@ -10,8 +10,15 @@ import "seaorm/options.proto";
 import "google/protobuf/timestamp.proto";
 
 // User entity with various column types and options
+// Using message-level relations (recommended)
 message User {
-  option (seaorm.message).table_name = "users";
+  option (seaorm.model) = {
+    table_name: "users"
+    relations: [
+      {name: "posts", type: RELATION_TYPE_HAS_MANY, related: "post"},
+      {name: "profile", type: RELATION_TYPE_HAS_ONE, related: "profile"}
+    ]
+  };
 
   // Primary key with auto-increment
   int64 id = 1 [(seaorm.field) = {
@@ -31,14 +38,16 @@ message User {
   // Timestamp fields
   google.protobuf.Timestamp created_at = 5;
   google.protobuf.Timestamp updated_at = 6;
-
-  // Relation: User has many Posts
-  repeated Post posts = 7 [(seaorm.field).has_many = "post"];
 }
 
-// Post entity with belongs_to relation
+// Post entity with belongs_to relation using message-level relation
 message Post {
-  option (seaorm.message).table_name = "posts";
+  option (seaorm.model) = {
+    table_name: "posts"
+    relations: [
+      {name: "author", type: RELATION_TYPE_BELONGS_TO, related: "user", foreign_key: "user_id"}
+    ]
+  };
 
   int64 id = 1 [(seaorm.field) = {
     primary_key: true,
@@ -48,12 +57,8 @@ message Post {
   string title = 2;
   string content = 3 [(seaorm.field).column_type = "Text"];
 
-  // Foreign key to User
-  int64 user_id = 4 [(seaorm.field) = {
-    belongs_to: "user",
-    belongs_to_from: "user_id",
-    belongs_to_to: "id"
-  }];
+  // Foreign key to User (just a regular column now, relation is defined above)
+  int64 user_id = 4;
 
   google.protobuf.Timestamp published_at = 5 [(seaorm.field).nullable = true];
 }
@@ -65,6 +70,58 @@ message SkippedMessage {
 
 // Message explicitly marked to skip
 message ExplicitlySkipped {
-  option (seaorm.message).skip = true;
+  option (seaorm.model).skip = true;
   string field = 1;
+}
+
+// Tag entity for many-to-many testing
+message Tag {
+  option (seaorm.model) = {
+    table_name: "tags"
+    relations: [
+      {name: "posts", type: RELATION_TYPE_MANY_TO_MANY, related: "post", through: "post_tags"}
+    ]
+  };
+
+  int64 id = 1 [(seaorm.field) = {
+    primary_key: true,
+    auto_increment: true
+  }];
+
+  string name = 2;
+}
+
+// Junction table for Post-Tag many-to-many
+message PostTag {
+  option (seaorm.model).table_name = "post_tags";
+
+  int64 post_id = 1 [(seaorm.field).primary_key = true];
+  int64 tag_id = 2 [(seaorm.field).primary_key = true];
+}
+
+// Embedded metadata message (stored as JSONB)
+message Metadata {
+  string key = 1;
+  string value = 2;
+}
+
+// Article with embedded metadata (JSONB)
+message Article {
+  option (seaorm.model).table_name = "articles";
+
+  int64 id = 1 [(seaorm.field) = {
+    primary_key: true,
+    auto_increment: true
+  }];
+
+  string title = 2;
+
+  // Embedded JSON field
+  Metadata metadata = 3 [(seaorm.field).embed = true];
+
+  // Optional embedded JSON field
+  optional Metadata extra = 4 [(seaorm.field) = {
+    embed: true,
+    nullable: true
+  }];
 }

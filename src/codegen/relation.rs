@@ -4,7 +4,7 @@
 //!
 //! SeaORM 2.0 uses the `DeriveRelation` macro with enum variants to define relations.
 
-use crate::options::seaorm::FieldOptions;
+use crate::options::seaorm::{FieldOptions, RelationDef, RelationType};
 use heck::{ToSnakeCase, ToUpperCamelCase};
 
 /// Represents a generated relation
@@ -13,7 +13,7 @@ pub struct GeneratedRelation {
     /// The enum variant name (e.g., "Posts", "Author")
     pub variant_name: String,
     /// The relation type (HasOne, HasMany, BelongsTo)
-    pub relation_type: RelationType,
+    pub relation_type: SeaOrmRelationType,
     /// Target entity module path (e.g., "super::post")
     pub target_entity: String,
     /// For BelongsTo: the local foreign key column
@@ -24,24 +24,27 @@ pub struct GeneratedRelation {
     pub via_table: Option<String>,
 }
 
-/// Type of relation
+/// Type of relation for SeaORM
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum RelationType {
+pub enum SeaOrmRelationType {
     /// One-to-one relationship
     HasOne,
     /// One-to-many relationship
     HasMany,
     /// Foreign key relationship (many-to-one)
     BelongsTo,
+    /// Many-to-many relationship (via junction table)
+    ManyToMany,
 }
 
-impl RelationType {
+impl SeaOrmRelationType {
     /// Get the SeaORM attribute name for this relation type
     pub fn attribute_name(&self) -> &'static str {
         match self {
-            RelationType::HasOne => "has_one",
-            RelationType::HasMany => "has_many",
-            RelationType::BelongsTo => "belongs_to",
+            SeaOrmRelationType::HasOne => "has_one",
+            SeaOrmRelationType::HasMany => "has_many",
+            SeaOrmRelationType::BelongsTo => "belongs_to",
+            SeaOrmRelationType::ManyToMany => "many_to_many",
         }
     }
 }
@@ -58,7 +61,7 @@ pub fn generate_relation(
         let target = &field_options.has_one;
         return Some(GeneratedRelation {
             variant_name: target.to_upper_camel_case(),
-            relation_type: RelationType::HasOne,
+            relation_type: SeaOrmRelationType::HasOne,
             target_entity: format!("super::{}::Entity", target.to_snake_case()),
             from_column: None,
             to_column: None,
@@ -74,7 +77,7 @@ pub fn generate_relation(
         if !field_options.has_many_via.is_empty() {
             return Some(GeneratedRelation {
                 variant_name: target.to_upper_camel_case(),
-                relation_type: RelationType::HasMany,
+                relation_type: SeaOrmRelationType::HasMany,
                 target_entity: format!("super::{}::Entity", target.to_snake_case()),
                 from_column: None,
                 to_column: None,
@@ -84,7 +87,7 @@ pub fn generate_relation(
 
         return Some(GeneratedRelation {
             variant_name: target.to_upper_camel_case(),
-            relation_type: RelationType::HasMany,
+            relation_type: SeaOrmRelationType::HasMany,
             target_entity: format!("super::{}::Entity", target.to_snake_case()),
             from_column: None,
             to_column: None,
@@ -111,7 +114,7 @@ pub fn generate_relation(
 
         return Some(GeneratedRelation {
             variant_name: target.to_upper_camel_case(),
-            relation_type: RelationType::BelongsTo,
+            relation_type: SeaOrmRelationType::BelongsTo,
             target_entity: format!("super::{}::Entity", target.to_snake_case()),
             from_column: Some(from_column),
             to_column: Some(to_column),
@@ -124,16 +127,98 @@ pub fn generate_relation(
     None
 }
 
+/// Generate a relation from a message-level RelationDef
+///
+/// This supports the cleaner message-level relation syntax
+pub fn generate_relation_from_def(rel_def: &RelationDef) -> Option<GeneratedRelation> {
+    if rel_def.name.is_empty() || rel_def.related.is_empty() {
+        return None;
+    }
+
+    let rel_type = RelationType::try_from(rel_def.r#type).unwrap_or(RelationType::Unspecified);
+
+    let relation_type = match rel_type {
+        RelationType::BelongsTo => SeaOrmRelationType::BelongsTo,
+        RelationType::HasOne => SeaOrmRelationType::HasOne,
+        RelationType::HasMany => SeaOrmRelationType::HasMany,
+        RelationType::ManyToMany => SeaOrmRelationType::ManyToMany,
+        RelationType::Unspecified => return None,
+    };
+
+    let target_entity = format!("super::{}::Entity", rel_def.related.to_snake_case());
+
+    // Determine from/to columns based on relation type
+    let (from_column, to_column) = match relation_type {
+        SeaOrmRelationType::BelongsTo => {
+            let from = if rel_def.foreign_key.is_empty() {
+                format!("{}_id", rel_def.related.to_snake_case())
+            } else {
+                rel_def.foreign_key.clone()
+            };
+            let to = if rel_def.references.is_empty() {
+                "id".to_string()
+            } else {
+                rel_def.references.clone()
+            };
+            (Some(from), Some(to))
+        }
+        SeaOrmRelationType::HasOne | SeaOrmRelationType::HasMany => {
+            // For has_one/has_many, foreign_key is on the related table
+            let fk = if !rel_def.foreign_key.is_empty() {
+                Some(rel_def.foreign_key.clone())
+            } else {
+                None
+            };
+            let refs = if !rel_def.references.is_empty() {
+                Some(rel_def.references.clone())
+            } else {
+                None
+            };
+            (fk, refs)
+        }
+        SeaOrmRelationType::ManyToMany => {
+            // For many-to-many, we use the junction table (through)
+            // foreign_key and references can optionally specify the join columns
+            let fk = if !rel_def.foreign_key.is_empty() {
+                Some(rel_def.foreign_key.clone())
+            } else {
+                None
+            };
+            let refs = if !rel_def.references.is_empty() {
+                Some(rel_def.references.clone())
+            } else {
+                None
+            };
+            (fk, refs)
+        }
+    };
+
+    let via_table = if !rel_def.through.is_empty() {
+        Some(rel_def.through.clone())
+    } else {
+        None
+    };
+
+    Some(GeneratedRelation {
+        variant_name: rel_def.name.to_upper_camel_case(),
+        relation_type,
+        target_entity,
+        from_column,
+        to_column,
+        via_table,
+    })
+}
+
 /// Generate the #[sea_orm(...)] attribute for a relation
 pub fn generate_relation_attribute(relation: &GeneratedRelation) -> String {
     match relation.relation_type {
-        RelationType::HasOne => {
+        SeaOrmRelationType::HasOne => {
             format!(
                 "has_one = \"{}\"",
                 relation.target_entity
             )
         }
-        RelationType::HasMany => {
+        SeaOrmRelationType::HasMany => {
             if let Some(ref via) = relation.via_table {
                 format!(
                     "has_many = \"{}\", via = \"{}\"",
@@ -146,7 +231,7 @@ pub fn generate_relation_attribute(relation: &GeneratedRelation) -> String {
                 )
             }
         }
-        RelationType::BelongsTo => {
+        SeaOrmRelationType::BelongsTo => {
             let from = relation.from_column.as_deref().unwrap_or("id");
             let to = relation.to_column.as_deref().unwrap_or("id");
             format!(
@@ -156,6 +241,23 @@ pub fn generate_relation_attribute(relation: &GeneratedRelation) -> String {
                 relation.target_entity.replace("super::", "").replace("::Entity", ""),
                 to.to_upper_camel_case()
             )
+        }
+        SeaOrmRelationType::ManyToMany => {
+            // Many-to-many in SeaORM requires a Linked trait implementation
+            // We generate the relation through the junction table
+            if let Some(ref via) = relation.via_table {
+                format!(
+                    "many_to_many = \"{}\", via = \"super::{}::Entity\"",
+                    relation.target_entity,
+                    via.to_snake_case()
+                )
+            } else {
+                // Without a junction table, fall back to has_many (user needs to specify via)
+                format!(
+                    "has_many = \"{}\"",
+                    relation.target_entity
+                )
+            }
         }
     }
 }
@@ -172,7 +274,7 @@ mod tests {
         };
         let rel = generate_relation("posts", &opts).unwrap();
         assert_eq!(rel.variant_name, "Post");
-        assert_eq!(rel.relation_type, RelationType::HasMany);
+        assert_eq!(rel.relation_type, SeaOrmRelationType::HasMany);
         assert_eq!(rel.target_entity, "super::post::Entity");
     }
 
@@ -186,7 +288,7 @@ mod tests {
         };
         let rel = generate_relation("user", &opts).unwrap();
         assert_eq!(rel.variant_name, "User");
-        assert_eq!(rel.relation_type, RelationType::BelongsTo);
+        assert_eq!(rel.relation_type, SeaOrmRelationType::BelongsTo);
         assert_eq!(rel.from_column, Some("user_id".to_string()));
         assert_eq!(rel.to_column, Some("id".to_string()));
     }

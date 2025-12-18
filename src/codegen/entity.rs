@@ -2,10 +2,18 @@
 //!
 //! This module generates the main entity struct with SeaORM 2.0 dense format.
 
+use crate::codegen::oneof::{
+    extract_oneofs, generate_flatten_fields, generate_json_fields, generate_tagged_fields,
+    is_oneof_field, OneofStrategy,
+};
+use crate::codegen::relation::{
+    generate_relation_attribute, generate_relation_from_def, GeneratedRelation,
+};
 use crate::options::{parse_field_options, parse_message_options, seaorm};
 use crate::types::map_proto_type;
 use crate::GeneratorError;
 use heck::ToSnakeCase;
+use proc_macro2::TokenStream;
 use prost_types::compiler::code_generator_response::File;
 use prost_types::field_descriptor_proto::Label;
 use prost_types::{DescriptorProto, FieldDescriptorProto, FileDescriptorProto};
@@ -51,6 +59,9 @@ pub fn generate(
     // Generate field definitions
     let fields = generate_fields(message)?;
 
+    // Generate oneof fields
+    let oneof_fields = generate_oneof_fields(message);
+
     // Build the entity struct
     let struct_name = format_ident!("Model");
     let table_name_lit = &table_name;
@@ -85,6 +96,22 @@ pub fn generate(
         })
         .collect();
 
+    // Combine regular fields with oneof fields
+    let all_field_tokens: Vec<TokenStream> = field_tokens
+        .into_iter()
+        .chain(oneof_fields.into_iter())
+        .collect();
+
+    // Generate relations from message-level relation definitions
+    let relations: Vec<GeneratedRelation> = message_options
+        .relations
+        .iter()
+        .filter_map(generate_relation_from_def)
+        .collect();
+
+    // Generate the Relation enum
+    let relation_enum = generate_relation_enum(&relations);
+
     let code = quote! {
         //! SeaORM entity for `#table_name_lit` table
         //!
@@ -95,11 +122,10 @@ pub fn generate(
         #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
         #[sea_orm(table_name = #table_name_lit)]
         pub struct #struct_name {
-            #(#field_tokens),*
+            #(#all_field_tokens),*
         }
 
-        #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
-        pub enum Relation {}
+        #relation_enum
 
         impl ActiveModelBehavior for ActiveModel {}
     };
@@ -145,6 +171,11 @@ fn generate_fields(message: &DescriptorProto) -> Result<Vec<GeneratedField>, Gen
             continue;
         }
 
+        // Skip oneof fields (they're handled by generate_oneof_fields)
+        if is_oneof_field(field, message) {
+            continue;
+        }
+
         // Determine the Rust type
         let proto_type = field.r#type();
         let type_name = field.type_name.as_deref();
@@ -153,17 +184,33 @@ fn generate_fields(message: &DescriptorProto) -> Result<Vec<GeneratedField>, Gen
         // Check if the field is nullable
         let is_nullable = is_field_nullable(field, &field_options);
 
+        // Check if this is an embedded field (stored as JSON)
+        let is_embedded = field_options.as_ref().map(|o| o.embed).unwrap_or(false);
+
         // Build the final Rust type
-        let rust_type = if is_nullable && !mapped.rust_type.starts_with("Option<") {
+        let rust_type = if is_embedded {
+            // Embedded fields are stored as typed JSON
+            // Extract the type name from the protobuf type_name
+            let inner_type = extract_embedded_type_name(type_name);
+            if is_nullable {
+                format!("Option<Json<{}>>", inner_type)
+            } else {
+                format!("Json<{}>", inner_type)
+            }
+        } else if is_nullable && !mapped.rust_type.starts_with("Option<") {
             format!("Option<{}>", mapped.rust_type)
         } else {
             mapped.rust_type.clone()
         };
 
-        // Override type if specified in options
-        let rust_type = if let Some(ref opts) = field_options {
-            if !opts.column_type.is_empty() {
-                map_column_type_to_rust(&opts.column_type, is_nullable)
+        // Override type if specified in options (but not for embedded fields)
+        let rust_type = if !is_embedded {
+            if let Some(ref opts) = field_options {
+                if !opts.column_type.is_empty() {
+                    map_column_type_to_rust(&opts.column_type, is_nullable)
+                } else {
+                    rust_type
+                }
             } else {
                 rust_type
             }
@@ -185,6 +232,55 @@ fn generate_fields(message: &DescriptorProto) -> Result<Vec<GeneratedField>, Gen
     }
 
     Ok(fields)
+}
+
+/// Generate fields for all oneofs in a message
+fn generate_oneof_fields(message: &DescriptorProto) -> Vec<TokenStream> {
+    let oneofs = extract_oneofs(message);
+    let mut fields = Vec::new();
+
+    for oneof in oneofs {
+        let oneof_fields = match oneof.strategy {
+            OneofStrategy::Flatten => generate_flatten_fields(&oneof, message),
+            OneofStrategy::Json => generate_json_fields(&oneof),
+            OneofStrategy::Tagged => generate_tagged_fields(&oneof),
+        };
+        fields.extend(oneof_fields);
+    }
+
+    fields
+}
+
+/// Generate the Relation enum for SeaORM entity
+fn generate_relation_enum(relations: &[GeneratedRelation]) -> TokenStream {
+    if relations.is_empty() {
+        // No relations - generate empty enum
+        quote! {
+            #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+            pub enum Relation {}
+        }
+    } else {
+        // Generate enum variants with relation attributes
+        let variants: Vec<TokenStream> = relations
+            .iter()
+            .map(|rel| {
+                let variant_name = format_ident!("{}", rel.variant_name);
+                let attr_str = generate_relation_attribute(rel);
+                let attr: proc_macro2::TokenStream = attr_str.parse().unwrap_or_else(|_| quote! {});
+                quote! {
+                    #[sea_orm(#attr)]
+                    #variant_name
+                }
+            })
+            .collect();
+
+        quote! {
+            #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+            pub enum Relation {
+                #(#variants),*
+            }
+        }
+    }
 }
 
 /// Check if a field is a relation field
@@ -244,8 +340,11 @@ fn generate_field_attributes(
             attrs.push(format!("column_name = \"{}\"", opts.column_name));
         }
 
+        // Handle column_type - embed implies JsonB if not explicitly set
         if !opts.column_type.is_empty() {
             attrs.push(format!("column_type = \"{}\"", opts.column_type));
+        } else if opts.embed {
+            attrs.push("column_type = \"JsonB\"".to_string());
         }
 
         if !opts.default_value.is_empty() {
@@ -281,5 +380,28 @@ fn map_column_type_to_rust(column_type: &str, is_nullable: bool) -> String {
         format!("Option<{}>", base_type)
     } else {
         base_type.to_string()
+    }
+}
+
+/// Extract the Rust type name for an embedded field from the protobuf type_name
+///
+/// Converts protobuf type names like `.test.models.Metadata` to Rust type names like `Metadata`.
+/// The type is expected to be defined elsewhere (e.g., in the same module or imported).
+fn extract_embedded_type_name(type_name: Option<&str>) -> String {
+    match type_name {
+        Some(name) => {
+            // Protobuf type names are like ".package.name.TypeName"
+            // Extract just the type name (last segment) and convert to PascalCase
+            let type_part = name
+                .rsplit('.')
+                .next()
+                .unwrap_or(name)
+                .trim_start_matches('.');
+
+            // Convert to PascalCase for Rust convention
+            use heck::ToUpperCamelCase;
+            type_part.to_upper_camel_case()
+        }
+        None => "serde_json::Value".to_string(), // Fallback for unknown types
     }
 }
