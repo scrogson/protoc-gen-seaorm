@@ -32,6 +32,10 @@ pub enum GeneratorError {
     /// General code generation failure
     #[error("Code generation failed: {0}")]
     CodeGenError(String),
+
+    /// Failed to decode protobuf message
+    #[error("Decode error: {0}")]
+    DecodeError(String),
 }
 
 /// Generate SeaORM entities from a protobuf CodeGeneratorRequest
@@ -39,4 +43,11 @@ pub enum GeneratorError {
 /// This is the main entry point for the code generator.
 pub fn generate(request: CodeGeneratorRequest) -> Result<CodeGeneratorResponse, GeneratorError> {
     generator::generate(request)
+}
+
+/// Generate SeaORM entities from raw protobuf bytes
+///
+/// This entry point preserves extension data by using prost-reflect for decoding.
+pub fn generate_from_bytes(bytes: &[u8]) -> Result<CodeGeneratorResponse, GeneratorError> {
+    generator::generate_from_bytes(bytes)
 }

@@ -1,0 +1,6 @@
+version: v2
+modules:
+  - path: proto
+  - path: tests/fixtures
+deps:
+  - buf.build/protocolbuffers/wellknowntypes

@@ -72,6 +72,11 @@ pub fn extract_oneofs(message: &DescriptorProto) -> Vec<OneofInfo> {
             .map(|s| s.as_str())
             .unwrap_or("unknown");
 
+        // Skip synthetic oneofs (proto3 optional fields create oneofs starting with '_')
+        if oneof_name.starts_with('_') {
+            continue;
+        }
+
         // Parse options
         let options = parse_oneof_options(oneof_desc);
         let (strategy, column_prefix, discriminator_column) = extract_oneof_settings(&options);
@@ -152,7 +157,8 @@ pub fn generate_flatten_fields(
 
             let field_ident = format_ident!("{}", field_name.to_snake_case());
             let mapped = map_proto_type(field.r#type(), field.type_name.as_deref());
-            let rust_type = format_ident!("{}", mapped.rust_type);
+            let rust_type: syn::Type = syn::parse_str(&mapped.rust_type)
+                .unwrap_or_else(|_| syn::parse_quote!(String));
 
             // All oneof fields are nullable since only one can be set
             let column_attr = quote! {

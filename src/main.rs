@@ -4,7 +4,7 @@
 //! CodeGeneratorResponse to stdout, following the protoc plugin protocol.
 
 use prost::Message;
-use prost_types::compiler::{CodeGeneratorRequest, CodeGeneratorResponse};
+use prost_types::compiler::CodeGeneratorResponse;
 use std::io::{self, Read, Write};
 
 fn main() {
@@ -15,17 +15,27 @@ fn main() {
 }
 
 fn run() -> Result<(), Box<dyn std::error::Error>> {
-    // Read CodeGeneratorRequest from stdin
+    // Read raw bytes from stdin
     let mut buf = Vec::new();
     io::stdin().read_to_end(&mut buf)?;
 
-    let request = CodeGeneratorRequest::decode(&buf[..])?;
-
-    // Generate code
-    let response = protoc_gen_seaorm::generate(request).unwrap_or_else(|e| CodeGeneratorResponse {
+    // Generate code using the bytes-based entry point
+    // This preserves extension data by using prost-reflect for initial decoding
+    let response = protoc_gen_seaorm::generate_from_bytes(&buf).unwrap_or_else(|e| CodeGeneratorResponse {
         error: Some(e.to_string()),
         ..Default::default()
     });
+
+    // Debug: print what we generated
+    if std::env::var("SEAORM_DEBUG").is_ok() {
+        eprintln!("[protoc-gen-seaorm] Generated {} files", response.file.len());
+        for f in &response.file {
+            eprintln!("[protoc-gen-seaorm]   - {}", f.name.as_deref().unwrap_or("<unnamed>"));
+        }
+        if let Some(ref err) = response.error {
+            eprintln!("[protoc-gen-seaorm] Error: {}", err);
+        }
+    }
 
     // Write CodeGeneratorResponse to stdout
     let mut out = Vec::new();

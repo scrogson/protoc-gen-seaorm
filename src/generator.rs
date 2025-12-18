@@ -4,6 +4,7 @@
 //! iterating through proto files and generating SeaORM entities and enums.
 
 use crate::GeneratorError;
+use prost::Message;
 use prost_types::compiler::{CodeGeneratorRequest, CodeGeneratorResponse};
 
 /// Generate SeaORM entities and enums from a CodeGeneratorRequest
@@ -41,4 +42,20 @@ pub fn generate(request: CodeGeneratorRequest) -> Result<CodeGeneratorResponse, 
         error: None,
         supported_features: Some(1), // FEATURE_PROTO3_OPTIONAL
     })
+}
+
+/// Generate SeaORM entities from raw protobuf bytes
+///
+/// This entry point preserves extension data by using prost-reflect for decoding.
+pub fn generate_from_bytes(bytes: &[u8]) -> Result<CodeGeneratorResponse, GeneratorError> {
+    // Pre-process bytes to extract extension data using prost-reflect
+    crate::options::preprocess_request_bytes(bytes)
+        .map_err(|e| GeneratorError::DecodeError(e))?;
+
+    // Now decode with prost (extension data is cached)
+    let request = CodeGeneratorRequest::decode(bytes)
+        .map_err(|e| GeneratorError::DecodeError(e.to_string()))?;
+
+    // Generate using the regular path (which will use cached options)
+    generate(request)
 }

@@ -209,6 +209,84 @@ pub fn generate_relation_from_def(rel_def: &RelationDef) -> Option<GeneratedRela
     })
 }
 
+/// Generate a relation field for the SeaORM 2.0 dense format
+///
+/// This generates a field like:
+/// ```ignore
+/// #[sea_orm(has_many)]
+/// pub posts: HasMany<super::post::Entity>,
+/// ```
+pub fn generate_relation_field(rel_def: &RelationDef) -> Option<proc_macro2::TokenStream> {
+    use quote::{format_ident, quote};
+
+    if rel_def.name.is_empty() || rel_def.related.is_empty() {
+        return None;
+    }
+
+    let rel_type = RelationType::try_from(rel_def.r#type).unwrap_or(RelationType::Unspecified);
+
+    let field_name = format_ident!("{}", rel_def.name.to_snake_case());
+    let target_entity: syn::Type =
+        syn::parse_str(&format!("super::{}::Entity", rel_def.related.to_snake_case()))
+            .unwrap_or_else(|_| syn::parse_quote!(Entity));
+
+    match rel_type {
+        RelationType::HasOne => {
+            Some(quote! {
+                #[sea_orm(has_one)]
+                pub #field_name: HasOne<#target_entity>
+            })
+        }
+        RelationType::HasMany => {
+            if !rel_def.through.is_empty() {
+                // Many-to-many via junction table
+                let via_table = &rel_def.through;
+                Some(quote! {
+                    #[sea_orm(has_many, via = #via_table)]
+                    pub #field_name: HasMany<#target_entity>
+                })
+            } else {
+                Some(quote! {
+                    #[sea_orm(has_many)]
+                    pub #field_name: HasMany<#target_entity>
+                })
+            }
+        }
+        RelationType::BelongsTo => {
+            let from_col = if rel_def.foreign_key.is_empty() {
+                format!("{}_id", rel_def.related.to_snake_case())
+            } else {
+                rel_def.foreign_key.clone()
+            };
+            let to_col = if rel_def.references.is_empty() {
+                "id".to_string()
+            } else {
+                rel_def.references.clone()
+            };
+
+            Some(quote! {
+                #[sea_orm(belongs_to, from = #from_col, to = #to_col)]
+                pub #field_name: BelongsTo<#target_entity>
+            })
+        }
+        RelationType::ManyToMany => {
+            if !rel_def.through.is_empty() {
+                let via_table = &rel_def.through;
+                Some(quote! {
+                    #[sea_orm(has_many, via = #via_table)]
+                    pub #field_name: HasMany<#target_entity>
+                })
+            } else {
+                Some(quote! {
+                    #[sea_orm(has_many)]
+                    pub #field_name: HasMany<#target_entity>
+                })
+            }
+        }
+        RelationType::Unspecified => None,
+    }
+}
+
 /// Generate the #[sea_orm(...)] attribute for a relation
 pub fn generate_relation_attribute(relation: &GeneratedRelation) -> String {
     match relation.relation_type {

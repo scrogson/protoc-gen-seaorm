@@ -1,0 +1,6 @@
+version: v2
+plugins:
+  - local: ./target/release/protoc-gen-seaorm
+    out: gen
+    opt:
+      - retain_options=true

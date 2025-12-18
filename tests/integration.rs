@@ -677,10 +677,15 @@ fn test_generate_entity_with_message_level_relations() {
 
     let content = response.file[0].content.as_ref().unwrap();
 
-    // Check that Relation enum has the variants
-    assert!(content.contains("enum Relation"), "should have Relation enum");
-    assert!(content.contains("Posts"), "should have Posts relation variant");
-    assert!(content.contains("Profile"), "should have Profile relation variant");
+    // Check that relations are generated as dense format fields
+    assert!(
+        content.contains("pub posts: HasMany<"),
+        "should have posts relation field"
+    );
+    assert!(
+        content.contains("pub profile: HasOne<"),
+        "should have profile relation field"
+    );
     assert!(content.contains("has_many"), "should have has_many attribute");
     assert!(content.contains("has_one"), "should have has_one attribute");
 }
@@ -764,10 +769,16 @@ fn test_generate_entity_with_belongs_to_relation() {
 
     let content = response.file[0].content.as_ref().unwrap();
 
-    // Check for belongs_to relation
-    assert!(content.contains("Author"), "should have Author relation variant");
+    // Check for belongs_to relation in dense format
+    assert!(
+        content.contains("pub author: BelongsTo<"),
+        "should have author relation field"
+    );
     assert!(content.contains("belongs_to"), "should have belongs_to attribute");
-    assert!(content.contains("AuthorId"), "should reference AuthorId column");
+    assert!(
+        content.contains("author_id"),
+        "should reference author_id column"
+    );
 }
 
 #[test]
@@ -843,10 +854,19 @@ fn test_generate_entity_with_many_to_many_relation() {
 
     let content = response.file[0].content.as_ref().unwrap();
 
-    // Check for many_to_many relation
-    assert!(content.contains("Posts"), "should have Posts relation variant");
-    assert!(content.contains("many_to_many"), "should have many_to_many attribute");
-    assert!(content.contains("post_tags"), "should reference post_tags junction table");
+    // Check for many_to_many relation in dense format (rendered as HasMany with via)
+    assert!(
+        content.contains("pub posts: HasMany<"),
+        "should have posts relation field"
+    );
+    assert!(
+        content.contains("has_many") && content.contains("via"),
+        "should have has_many with via attribute"
+    );
+    assert!(
+        content.contains("post_tags"),
+        "should reference post_tags junction table"
+    );
 }
 
 #[test]
