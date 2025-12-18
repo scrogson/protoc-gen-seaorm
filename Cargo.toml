@@ -2,11 +2,23 @@
 name = "protoc-gen-seaorm"
 version = "0.1.0"
 edition = "2021"
+rust-version = "1.70"
+authors = ["Sonny Scroggin <sonny@scrogson.com>"]
 description = "A protoc plugin that generates SeaORM 2.0 entity models from protobuf definitions"
-license = "MIT OR Apache-2.0"
+documentation = "https://github.com/scrogson/protoc-gen-seaorm#readme"
+homepage = "https://github.com/scrogson/protoc-gen-seaorm"
 repository = "https://github.com/scrogson/protoc-gen-seaorm"
-keywords = ["protobuf", "seaorm", "codegen", "protoc"]
+readme = "README.md"
+license = "MIT"
+keywords = ["protobuf", "seaorm", "codegen", "protoc", "orm"]
 categories = ["development-tools", "database"]
+exclude = [
+    ".github/",
+    ".beads/",
+    "examples/",
+    "gen/",
+    "tests/fixtures/",
+]
 
 [[bin]]
 name = "protoc-gen-seaorm"
