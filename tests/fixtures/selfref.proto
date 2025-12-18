@@ -1,0 +1,25 @@
+// Test fixture for self-referential relations
+syntax = "proto3";
+
+package test.selfref;
+
+import "seaorm/options.proto";
+
+// Category with self-referential parent/children relations
+message TreeNode {
+  option (seaorm.model) = {
+    table_name: "tree_nodes"
+    relations: [
+      {name: "parent", type: RELATION_TYPE_BELONGS_TO, related: "tree_node", foreign_key: "parent_id"},
+      {name: "children", type: RELATION_TYPE_HAS_MANY, related: "tree_node", foreign_key: "parent_id"}
+    ]
+  };
+
+  int64 id = 1 [(seaorm.field) = {
+    primary_key: true,
+    auto_increment: true
+  }];
+
+  string name = 2;
+  optional int64 parent_id = 3;
+}

@@ -1,0 +1,31 @@
+//! SeaORM Database Example
+//!
+//! This example demonstrates using generated SeaORM entities from protobuf
+//! definitions with schema-sync for automatic table creation.
+//!
+//! ## Generating Entities
+//!
+//! ```bash
+//! # Build the protoc-gen-seaorm plugin first (from root)
+//! cargo build --release
+//!
+//! # Generate entities from proto (from this directory)
+//! buf generate
+//! ```
+
+/// Generated entity modules from protobuf definitions
+pub mod entity {
+    /// Example entities (User, Post)
+    pub mod example {
+        pub mod prelude;
+        pub mod post;
+        pub mod user;
+
+        pub use post::Entity as Post;
+        pub use user::Entity as User;
+    }
+
+    pub use example::*;
+}
+
+pub use entity::*;

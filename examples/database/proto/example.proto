@@ -1,0 +1,37 @@
+syntax = "proto3";
+
+package example;
+
+import "seaorm/options.proto";
+import "google/protobuf/timestamp.proto";
+
+// User entity with one-to-many relationship to posts
+message User {
+  option (seaorm.model) = {
+    table_name: "users"
+    relations: [
+      {name: "posts", type: RELATION_TYPE_HAS_MANY, related: "post", foreign_key: "author_id"}
+    ]
+  };
+
+  int64 id = 1 [(seaorm.field) = { primary_key: true, auto_increment: true }];
+  string email = 2 [(seaorm.field).unique = true];
+  string name = 3;
+  google.protobuf.Timestamp created_at = 4;
+}
+
+// Post entity with many-to-one relationship to user
+message Post {
+  option (seaorm.model) = {
+    table_name: "posts"
+    relations: [
+      {name: "author", type: RELATION_TYPE_BELONGS_TO, related: "user", foreign_key: "author_id"}
+    ]
+  };
+
+  int64 id = 1 [(seaorm.field) = { primary_key: true, auto_increment: true }];
+  string title = 2;
+  string content = 3;
+  int64 author_id = 4;
+  google.protobuf.Timestamp created_at = 5;
+}

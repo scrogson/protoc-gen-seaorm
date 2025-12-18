@@ -1,0 +1,43 @@
+// Test fixture with bidirectional relations (has_many + belongs_to)
+syntax = "proto3";
+
+package test.bidir;
+
+import "seaorm/options.proto";
+
+// Author entity with has_many posts
+message Author {
+  option (seaorm.model) = {
+    table_name: "authors"
+    relations: [
+      {name: "posts", type: RELATION_TYPE_HAS_MANY, related: "blog_post", foreign_key: "author_id"}
+    ]
+  };
+
+  int64 id = 1 [(seaorm.field) = {
+    primary_key: true,
+    auto_increment: true
+  }];
+
+  string name = 2;
+  string email = 3 [(seaorm.field).unique = true];
+}
+
+// BlogPost entity with belongs_to author
+message BlogPost {
+  option (seaorm.model) = {
+    table_name: "blog_posts"
+    relations: [
+      {name: "author", type: RELATION_TYPE_BELONGS_TO, related: "author", foreign_key: "author_id"}
+    ]
+  };
+
+  int64 id = 1 [(seaorm.field) = {
+    primary_key: true,
+    auto_increment: true
+  }];
+
+  string title = 2;
+  string content = 3;
+  int64 author_id = 4;
+}

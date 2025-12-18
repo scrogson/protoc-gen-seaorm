@@ -1,0 +1,55 @@
+// Test fixture for many-to-many relations via junction table
+syntax = "proto3";
+
+package test.m2m;
+
+import "seaorm/options.proto";
+
+// Article entity with many-to-many to categories
+message Article {
+  option (seaorm.model) = {
+    table_name: "articles"
+    relations: [
+      {name: "categories", type: RELATION_TYPE_MANY_TO_MANY, related: "category", through: "ArticleCategory"}
+    ]
+  };
+
+  int64 id = 1 [(seaorm.field) = {
+    primary_key: true,
+    auto_increment: true
+  }];
+
+  string title = 2;
+  string content = 3;
+}
+
+// Category entity with many-to-many to articles
+message Category {
+  option (seaorm.model) = {
+    table_name: "categories"
+    relations: [
+      {name: "articles", type: RELATION_TYPE_MANY_TO_MANY, related: "article", through: "ArticleCategory"}
+    ]
+  };
+
+  int64 id = 1 [(seaorm.field) = {
+    primary_key: true,
+    auto_increment: true
+  }];
+
+  string name = 2 [(seaorm.field).unique = true];
+}
+
+// Junction table for Article-Category many-to-many
+message ArticleCategory {
+  option (seaorm.model) = {
+    table_name: "article_categories"
+    relations: [
+      {name: "article", type: RELATION_TYPE_BELONGS_TO, related: "article", foreign_key: "article_id"},
+      {name: "category", type: RELATION_TYPE_BELONGS_TO, related: "category", foreign_key: "category_id"}
+    ]
+  };
+
+  int64 article_id = 1 [(seaorm.field).primary_key = true];
+  int64 category_id = 2 [(seaorm.field).primary_key = true];
+}

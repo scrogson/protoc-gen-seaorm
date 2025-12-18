@@ -1,0 +1,7 @@
+version: v2
+plugins:
+  # Use the protoc-gen-seaorm binary from the parent project
+  - local: ../../target/release/protoc-gen-seaorm
+    out: src/entity
+    opt:
+      - retain_options=true

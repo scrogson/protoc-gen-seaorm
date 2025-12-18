@@ -1,0 +1,41 @@
+// Simple test fixture without complex relations
+syntax = "proto3";
+
+package test.simple;
+
+import "seaorm/options.proto";
+
+// Simple user entity without relations
+message SimpleUser {
+  option (seaorm.model) = {
+    table_name: "simple_users"
+  };
+
+  int64 id = 1 [(seaorm.field) = {
+    primary_key: true,
+    auto_increment: true
+  }];
+
+  string email = 2 [(seaorm.field).unique = true];
+  string name = 3;
+  bool is_active = 4 [(seaorm.field).default_value = "true"];
+}
+
+// Simple post with single belongs_to (no reverse has_many)
+message SimplePost {
+  option (seaorm.model) = {
+    table_name: "simple_posts"
+    relations: [
+      {name: "author", type: RELATION_TYPE_BELONGS_TO, related: "simple_user", foreign_key: "author_id"}
+    ]
+  };
+
+  int64 id = 1 [(seaorm.field) = {
+    primary_key: true,
+    auto_increment: true
+  }];
+
+  string title = 2;
+  string content = 3;
+  int64 author_id = 4;
+}

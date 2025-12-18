@@ -769,9 +769,9 @@ fn test_generate_entity_with_belongs_to_relation() {
 
     let content = response.file[0].content.as_ref().unwrap();
 
-    // Check for belongs_to relation in dense format
+    // Check for belongs_to relation in dense format (uses HasOne type)
     assert!(
-        content.contains("pub author: BelongsTo<"),
+        content.contains("pub author: HasOne<"),
         "should have author relation field"
     );
     assert!(content.contains("belongs_to"), "should have belongs_to attribute");
@@ -978,8 +978,17 @@ fn test_generate_entity_with_embed_field() {
 
     let content = response.file[0].content.as_ref().unwrap();
 
-    // Check for embedded fields with typed Json<T>
-    assert!(content.contains("pub metadata: Json<Metadata>"), "should have metadata as Json<Metadata> type");
-    assert!(content.contains("JsonB"), "should have JsonB column type");
-    assert!(content.contains("pub extra: Option<Json<Metadata>>"), "should have extra as Option<Json<Metadata>>");
+    // Check for embedded fields with direct type (SeaORM 2.0 uses type directly with FromJsonQueryResult)
+    assert!(
+        content.contains("pub metadata: Metadata"),
+        "should have metadata as Metadata type directly"
+    );
+    assert!(
+        content.contains("JsonBinary"),
+        "should have JsonBinary column type"
+    );
+    assert!(
+        content.contains("pub extra: Option<Metadata>"),
+        "should have extra as Option<Metadata>"
+    );
 }

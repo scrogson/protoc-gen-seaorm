@@ -86,7 +86,7 @@ message User {
       {name: "posts", type: RELATION_TYPE_HAS_MANY, related: "post", foreign_key: "author_id"},
       {name: "profile", type: RELATION_TYPE_HAS_ONE, related: "user_profile"},
       {name: "comments", type: RELATION_TYPE_HAS_MANY, related: "comment"},
-      {name: "roles", type: RELATION_TYPE_MANY_TO_MANY, related: "role", through: "user_roles"}
+      {name: "roles", type: RELATION_TYPE_MANY_TO_MANY, related: "role", through: "UserRole"}
     ]
   };
 
@@ -182,7 +182,7 @@ message Post {
     relations: [
       {name: "author", type: RELATION_TYPE_BELONGS_TO, related: "user", foreign_key: "author_id"},
       {name: "comments", type: RELATION_TYPE_HAS_MANY, related: "comment"},
-      {name: "tags", type: RELATION_TYPE_MANY_TO_MANY, related: "tag", through: "post_tags"}
+      {name: "tags", type: RELATION_TYPE_MANY_TO_MANY, related: "tag", through: "PostTag"}
     ]
   };
 
@@ -250,7 +250,7 @@ message Tag {
   option (seaorm.model) = {
     table_name: "tags"
     relations: [
-      {name: "posts", type: RELATION_TYPE_MANY_TO_MANY, related: "post", through: "post_tags"}
+      {name: "posts", type: RELATION_TYPE_MANY_TO_MANY, related: "post", through: "PostTag"}
     ]
   };
 
@@ -273,8 +273,8 @@ message Role {
   option (seaorm.model) = {
     table_name: "roles"
     relations: [
-      {name: "users", type: RELATION_TYPE_MANY_TO_MANY, related: "user", through: "user_roles"},
-      {name: "permissions", type: RELATION_TYPE_MANY_TO_MANY, related: "permission", through: "role_permissions"}
+      {name: "users", type: RELATION_TYPE_MANY_TO_MANY, related: "user", through: "UserRole"},
+      {name: "permissions", type: RELATION_TYPE_MANY_TO_MANY, related: "permission", through: "RolePermission"}
     ]
   };
 
@@ -295,7 +295,7 @@ message Permission {
   option (seaorm.model) = {
     table_name: "permissions"
     relations: [
-      {name: "roles", type: RELATION_TYPE_MANY_TO_MANY, related: "role", through: "role_permissions"}
+      {name: "roles", type: RELATION_TYPE_MANY_TO_MANY, related: "role", through: "RolePermission"}
     ]
   };
 
@@ -317,7 +317,13 @@ message Permission {
 
 // Junction table for Post-Tag many-to-many (composite primary key)
 message PostTag {
-  option (seaorm.model).table_name = "post_tags";
+  option (seaorm.model) = {
+    table_name: "post_tags"
+    relations: [
+      {name: "post", type: RELATION_TYPE_BELONGS_TO, related: "post", foreign_key: "post_id"},
+      {name: "tag", type: RELATION_TYPE_BELONGS_TO, related: "tag", foreign_key: "tag_id"}
+    ]
+  };
 
   int64 post_id = 1 [(seaorm.field).primary_key = true];
   int64 tag_id = 2 [(seaorm.field).primary_key = true];
@@ -327,7 +333,13 @@ message PostTag {
 
 // Junction table for User-Role many-to-many
 message UserRole {
-  option (seaorm.model).table_name = "user_roles";
+  option (seaorm.model) = {
+    table_name: "user_roles"
+    relations: [
+      {name: "user", type: RELATION_TYPE_BELONGS_TO, related: "user", foreign_key: "user_id"},
+      {name: "role", type: RELATION_TYPE_BELONGS_TO, related: "role", foreign_key: "role_id"}
+    ]
+  };
 
   int64 user_id = 1 [(seaorm.field).primary_key = true];
   int64 role_id = 2 [(seaorm.field).primary_key = true];
@@ -338,7 +350,13 @@ message UserRole {
 
 // Junction table for Role-Permission many-to-many
 message RolePermission {
-  option (seaorm.model).table_name = "role_permissions";
+  option (seaorm.model) = {
+    table_name: "role_permissions"
+    relations: [
+      {name: "role", type: RELATION_TYPE_BELONGS_TO, related: "role", foreign_key: "role_id"},
+      {name: "permission", type: RELATION_TYPE_BELONGS_TO, related: "permission", foreign_key: "permission_id"}
+    ]
+  };
 
   int64 role_id = 1 [(seaorm.field).primary_key = true];
   int64 permission_id = 2 [(seaorm.field).primary_key = true];

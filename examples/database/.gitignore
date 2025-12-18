@@ -1,0 +1,8 @@
+# Generated SeaORM entities (regenerate with: buf generate)
+src/entity/
+# But keep prelude.rs (hand-written)
+!src/entity/**/prelude.rs
+
+# Cargo build artifacts
+target/
+Cargo.lock

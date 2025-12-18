@@ -5,6 +5,9 @@
 /target/
 **/*.rs.bk
 
+# Generated code (regenerate with: buf generate)
+/gen/
+
 # IDE
 .idea/
 .vscode/

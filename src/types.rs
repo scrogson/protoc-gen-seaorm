@@ -114,12 +114,13 @@ fn map_message_type(type_name: Option<&str>) -> MappedType {
             column_type: None,
         },
         Some(name) => {
-            // For other message types, default to Json<T> storage
+            // For other message types, use the type directly
+            // In SeaORM 2.0, the type should derive FromJsonQueryResult for JSON storage
             let type_name = name.rsplit('.').next().unwrap_or(name);
             MappedType {
-                rust_type: format!("Json<{}>", type_name),
-                requires_import: Some("sea_orm::prelude::Json".to_string()),
-                column_type: Some("Json".to_string()),
+                rust_type: type_name.to_string(),
+                requires_import: None,
+                column_type: Some("JsonBinary".to_string()),
             }
         }
         None => MappedType {

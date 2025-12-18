@@ -1,0 +1,177 @@
+// SeaORM protobuf extension options
+//
+// These options are used to annotate protobuf messages and fields
+// with SeaORM entity configuration.
+//
+// Usage:
+//   import "seaorm/options.proto";
+//
+//   message User {
+//     option (seaorm.model).table_name = "users";
+//
+//     int64 id = 1 [(seaorm.field).primary_key = true];
+//     string email = 2 [(seaorm.field).unique = true];
+//   }
+
+syntax = "proto3";
+
+package seaorm;
+
+import "google/protobuf/descriptor.proto";
+
+// Relation type enum
+enum RelationType {
+  RELATION_TYPE_UNSPECIFIED = 0;
+  RELATION_TYPE_BELONGS_TO = 1;
+  RELATION_TYPE_HAS_ONE = 2;
+  RELATION_TYPE_HAS_MANY = 3;
+  RELATION_TYPE_MANY_TO_MANY = 4;
+}
+
+// Relation definition for message-level relations
+message RelationDef {
+  // Name of the relation field (e.g., "posts", "author")
+  string name = 1;
+
+  // Type of relation
+  RelationType type = 2;
+
+  // Related entity/schema name (e.g., "post", "User")
+  string related = 3;
+
+  // Foreign key column name (defaults based on relation type)
+  string foreign_key = 4;
+
+  // References column on the related entity (defaults to "id")
+  string references = 5;
+
+  // For many-to-many: junction table name
+  string through = 6;
+}
+
+// Message-level options for SeaORM entity configuration
+message MessageOptions {
+  // The database table name (defaults to snake_case of message name)
+  string table_name = 1;
+
+  // Index definitions (e.g., "idx_email" or "idx_name_email:name,email")
+  repeated string indexes = 2;
+
+  // Skip this message (don't generate an entity)
+  bool skip = 3;
+
+  // Message-level relation definitions
+  repeated RelationDef relations = 4;
+}
+
+// Field-level options for SeaORM column configuration
+message FieldOptions {
+  // Mark this field as the primary key
+  bool primary_key = 1;
+
+  // Enable auto-increment for this field
+  bool auto_increment = 2;
+
+  // Add a unique constraint
+  bool unique = 3;
+
+  // Mark this field as nullable (for proto3 where all fields are optional)
+  bool nullable = 4;
+
+  // Override the database column name
+  string column_name = 5;
+
+  // Explicit SeaORM column type (e.g., "Uuid", "Json", "Text")
+  string column_type = 6;
+
+  // Default value expression
+  string default_value = 7;
+
+  // Embed this field as JSON (for nested messages stored in JSONB columns)
+  bool embed = 8;
+
+  // Relations (legacy field-level - prefer message-level relations)
+  // Target entity name for has_one relation
+  string has_one = 10;
+
+  // Target entity name for has_many relation
+  string has_many = 11;
+
+  // Target entity name for belongs_to relation
+  string belongs_to = 12;
+
+  // Local foreign key column for belongs_to
+  string belongs_to_from = 13;
+
+  // Remote primary key column for belongs_to
+  string belongs_to_to = 14;
+
+  // Junction table name for many-to-many relations
+  string has_many_via = 15;
+}
+
+// Enum-level options for SeaORM enum configuration
+message EnumOptions {
+  // The Rust enum name (defaults to PascalCase of proto enum name)
+  string name = 1;
+
+  // Database representation type
+  // "string" - store as string (default)
+  // "integer" - store as integer
+  string db_type = 2;
+
+  // Skip this enum (don't generate)
+  bool skip = 3;
+}
+
+// Enum value options for customizing individual variants
+message EnumValueOptions {
+  // Override the Rust variant name
+  string name = 1;
+
+  // Override the string representation in the database
+  string string_value = 2;
+
+  // Override the integer representation in the database
+  int32 int_value = 3;
+}
+
+// Oneof options for SeaORM oneof handling
+message OneofOptions {
+  // How to handle the oneof in the database
+  // "flatten" - each variant becomes a nullable column (default)
+  // "json" - store as JSON with discriminator
+  // "tagged" - store type tag + value columns
+  string strategy = 1;
+
+  // Column name prefix for flattened fields
+  string column_prefix = 2;
+
+  // For "tagged" strategy: name of the discriminator column
+  string discriminator_column = 3;
+}
+
+// Extend google.protobuf.MessageOptions to add seaorm.model
+extend google.protobuf.MessageOptions {
+  MessageOptions model = 50000;
+}
+
+// Extend google.protobuf.FieldOptions to add seaorm.field
+extend google.protobuf.FieldOptions {
+  FieldOptions field = 50001;
+}
+
+// Extend google.protobuf.EnumOptions to add seaorm.enum
+extend google.protobuf.EnumOptions {
+  EnumOptions enum_opt = 50002;
+}
+
+// Extend google.protobuf.EnumValueOptions to add seaorm.enum_value
+extend google.protobuf.EnumValueOptions {
+  EnumValueOptions enum_value = 50003;
+}
+
+// Extend google.protobuf.OneofOptions to add seaorm.oneof
+extend google.protobuf.OneofOptions {
+  OneofOptions oneof = 50004;
+}

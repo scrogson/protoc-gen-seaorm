@@ -1,0 +1,50 @@
+// Example proto for database integration tests
+//
+// This demonstrates a simple User-Post relationship for testing
+// with SeaORM 2.0's schema-sync feature.
+
+syntax = "proto3";
+
+package example;
+
+import "seaorm/options.proto";
+import "google/protobuf/timestamp.proto";
+
+// User entity with has_many posts
+message User {
+  option (seaorm.model) = {
+    table_name: "users"
+    relations: [
+      {name: "posts", type: RELATION_TYPE_HAS_MANY, related: "post", foreign_key: "author_id"}
+    ]
+  };
+
+  int64 id = 1 [(seaorm.field) = {
+    primary_key: true,
+    auto_increment: true
+  }];
+
+  string email = 2 [(seaorm.field).unique = true];
+  string name = 3;
+  google.protobuf.Timestamp created_at = 4;
+}
+
+// Post entity with belongs_to author
+message Post {
+  option (seaorm.model) = {
+    table_name: "posts"
+    relations: [
+      {name: "author", type: RELATION_TYPE_BELONGS_TO, related: "user", foreign_key: "author_id"}
+    ]
+  };
+
+  int64 id = 1 [(seaorm.field) = {
+    primary_key: true,
+    auto_increment: true
+  }];
+
+  string title = 2;
+  string content = 3 [(seaorm.field).column_type = "Text"];
+  int64 author_id = 4;
+  google.protobuf.Timestamp created_at = 5;
+}
