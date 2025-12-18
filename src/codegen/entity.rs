@@ -80,7 +80,7 @@ pub fn generate(
             let name = format_ident!("{}", f.name);
             let ty: syn::Type = syn::parse_str(&f.rust_type).unwrap_or_else(|_| {
                 // Fallback to parsing as a simple path
-                syn::parse_str::<syn::Type>(&format!("{}", f.rust_type))
+                syn::parse_str::<syn::Type>(&f.rust_type.to_string())
                     .unwrap_or_else(|_| syn::parse_quote!(String))
             });
 
@@ -113,8 +113,8 @@ pub fn generate(
     // Combine regular fields, oneof fields, and relation fields
     let all_field_tokens: Vec<TokenStream> = field_tokens
         .into_iter()
-        .chain(oneof_fields.into_iter())
-        .chain(relation_fields.into_iter())
+        .chain(oneof_fields)
+        .chain(relation_fields)
         .collect();
 
     let code = quote! {

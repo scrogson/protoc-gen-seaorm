@@ -2,12 +2,12 @@
 //!
 //! These tests exercise the full code generation pipeline.
 
+use prost_types::uninterpreted_option::NamePart;
 use prost_types::{
     compiler::CodeGeneratorRequest, field_descriptor_proto::Type, DescriptorProto,
     EnumDescriptorProto, EnumOptions, EnumValueDescriptorProto, FieldDescriptorProto,
     FileDescriptorProto, MessageOptions, OneofDescriptorProto, OneofOptions, UninterpretedOption,
 };
-use prost_types::uninterpreted_option::NamePart;
 
 /// Create a test CodeGeneratorRequest with a simple User message
 fn create_test_request() -> CodeGeneratorRequest {
@@ -112,12 +112,27 @@ fn test_generate_entity() {
     let content = file.content.as_ref().unwrap();
 
     // Check for expected content
-    assert!(content.contains("DeriveEntityModel"), "should have DeriveEntityModel derive");
-    assert!(content.contains("table_name = \"users\""), "should have table_name attribute");
+    assert!(
+        content.contains("DeriveEntityModel"),
+        "should have DeriveEntityModel derive"
+    );
+    assert!(
+        content.contains("table_name = \"users\""),
+        "should have table_name attribute"
+    );
     assert!(content.contains("pub id: i64"), "should have id field");
-    assert!(content.contains("pub email: String"), "should have email field");
-    assert!(content.contains("pub name: String"), "should have name field");
-    assert!(content.contains("primary_key"), "should have primary_key attribute");
+    assert!(
+        content.contains("pub email: String"),
+        "should have email field"
+    );
+    assert!(
+        content.contains("pub name: String"),
+        "should have name field"
+    );
+    assert!(
+        content.contains("primary_key"),
+        "should have primary_key attribute"
+    );
     assert!(content.contains("unique"), "should have unique attribute");
 }
 
@@ -155,7 +170,11 @@ fn test_skip_message_without_options() {
     assert!(response.error.is_none());
 
     // Should generate no files (message was skipped)
-    assert_eq!(response.file.len(), 0, "should generate no files for messages without seaorm options");
+    assert_eq!(
+        response.file.len(),
+        0,
+        "should generate no files for messages without seaorm options"
+    );
 }
 
 #[test]
@@ -205,7 +224,11 @@ fn test_skip_explicitly_skipped_message() {
     assert!(response.error.is_none());
 
     // Should generate no files (message was explicitly skipped)
-    assert_eq!(response.file.len(), 0, "should generate no files for explicitly skipped messages");
+    assert_eq!(
+        response.file.len(),
+        0,
+        "should generate no files for explicitly skipped messages"
+    );
 }
 
 /// Create a test CodeGeneratorRequest with a Status enum
@@ -280,11 +303,26 @@ fn test_generate_enum() {
     let content = file.content.as_ref().unwrap();
 
     // Check for expected content
-    assert!(content.contains("DeriveActiveEnum"), "should have DeriveActiveEnum derive");
-    assert!(content.contains("rs_type = \"String\""), "should have rs_type String");
-    assert!(content.contains("string_value"), "should have string_value attributes");
-    assert!(content.contains("StatusUnknown") || content.contains("Unknown"), "should have variant");
-    assert!(content.contains("StatusActive") || content.contains("Active"), "should have variant");
+    assert!(
+        content.contains("DeriveActiveEnum"),
+        "should have DeriveActiveEnum derive"
+    );
+    assert!(
+        content.contains("rs_type = \"String\""),
+        "should have rs_type String"
+    );
+    assert!(
+        content.contains("string_value"),
+        "should have string_value attributes"
+    );
+    assert!(
+        content.contains("StatusUnknown") || content.contains("Unknown"),
+        "should have variant"
+    );
+    assert!(
+        content.contains("StatusActive") || content.contains("Active"),
+        "should have variant"
+    );
 }
 
 #[test]
@@ -345,8 +383,14 @@ fn test_generate_integer_enum() {
     assert_eq!(response.file.len(), 1);
 
     let content = response.file[0].content.as_ref().unwrap();
-    assert!(content.contains("rs_type = \"i32\""), "should have rs_type i32");
-    assert!(content.contains("num_value"), "should have num_value attributes");
+    assert!(
+        content.contains("rs_type = \"i32\""),
+        "should have rs_type i32"
+    );
+    assert!(
+        content.contains("num_value"),
+        "should have num_value attributes"
+    );
 }
 
 #[test]
@@ -379,7 +423,11 @@ fn test_skip_enum_without_options() {
     let response = protoc_gen_seaorm::generate(request).expect("generation should succeed");
 
     assert!(response.error.is_none());
-    assert_eq!(response.file.len(), 0, "should generate no files for enums without seaorm options");
+    assert_eq!(
+        response.file.len(),
+        0,
+        "should generate no files for enums without seaorm options"
+    );
 }
 
 #[test]
@@ -487,7 +535,10 @@ fn test_generate_entity_with_oneof_flatten() {
 
     // Check regular fields
     assert!(content.contains("pub id: i64"), "should have id field");
-    assert!(content.contains("pub amount: f64"), "should have amount field");
+    assert!(
+        content.contains("pub amount: f64"),
+        "should have amount field"
+    );
 
     // Check oneof fields are flattened and nullable
     assert!(
@@ -500,7 +551,10 @@ fn test_generate_entity_with_oneof_flatten() {
     );
 
     // Check that nullable attribute is present
-    assert!(content.contains("nullable"), "should have nullable attribute for oneof fields");
+    assert!(
+        content.contains("nullable"),
+        "should have nullable attribute for oneof fields"
+    );
 }
 
 #[test]
@@ -598,7 +652,10 @@ fn test_generate_entity_with_oneof_json() {
     let content = response.file[0].content.as_ref().unwrap();
 
     // Check that JSON column is created for the oneof
-    assert!(content.contains("event_type"), "should have event_type field for JSON oneof");
+    assert!(
+        content.contains("event_type"),
+        "should have event_type field for JSON oneof"
+    );
     assert!(content.contains("Json"), "should have Json column type");
 }
 
@@ -686,7 +743,10 @@ fn test_generate_entity_with_message_level_relations() {
         content.contains("pub profile: HasOne<"),
         "should have profile relation field"
     );
-    assert!(content.contains("has_many"), "should have has_many attribute");
+    assert!(
+        content.contains("has_many"),
+        "should have has_many attribute"
+    );
     assert!(content.contains("has_one"), "should have has_one attribute");
 }
 
@@ -774,7 +834,10 @@ fn test_generate_entity_with_belongs_to_relation() {
         content.contains("pub author: HasOne<"),
         "should have author relation field"
     );
-    assert!(content.contains("belongs_to"), "should have belongs_to attribute");
+    assert!(
+        content.contains("belongs_to"),
+        "should have belongs_to attribute"
+    );
     assert!(
         content.contains("author_id"),
         "should reference author_id column"

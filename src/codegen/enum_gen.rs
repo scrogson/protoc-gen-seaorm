@@ -12,18 +12,13 @@ use prost_types::{EnumDescriptorProto, FileDescriptorProto};
 use quote::{format_ident, quote};
 
 /// Database type for enum storage
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum DbType {
     /// Store as string (default)
+    #[default]
     String,
     /// Store as integer
     Integer,
-}
-
-impl Default for DbType {
-    fn default() -> Self {
-        DbType::String
-    }
 }
 
 /// Generate a SeaORM enum from a protobuf enum definition
@@ -76,8 +71,8 @@ pub fn generate(
 
     // Determine output file path
     let proto_path = file.name.as_deref().unwrap_or("unknown.proto");
-    let output_path = proto_path
-        .replace(".proto", &format!("/{}.rs", rust_enum_name.to_snake_case()));
+    let output_path =
+        proto_path.replace(".proto", &format!("/{}.rs", rust_enum_name.to_snake_case()));
 
     Ok(Some(File {
         name: Some(output_path),

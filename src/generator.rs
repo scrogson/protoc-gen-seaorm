@@ -49,8 +49,7 @@ pub fn generate(request: CodeGeneratorRequest) -> Result<CodeGeneratorResponse, 
 /// This entry point preserves extension data by using prost-reflect for decoding.
 pub fn generate_from_bytes(bytes: &[u8]) -> Result<CodeGeneratorResponse, GeneratorError> {
     // Pre-process bytes to extract extension data using prost-reflect
-    crate::options::preprocess_request_bytes(bytes)
-        .map_err(|e| GeneratorError::DecodeError(e))?;
+    crate::options::preprocess_request_bytes(bytes).map_err(GeneratorError::DecodeError)?;
 
     // Now decode with prost (extension data is cached)
     let request = CodeGeneratorRequest::decode(bytes)

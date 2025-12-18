@@ -24,14 +24,15 @@ pub enum OneofStrategy {
     Tagged,
 }
 
-impl OneofStrategy {
-    /// Parse strategy from string option
-    pub fn from_str(s: &str) -> Self {
-        match s.to_lowercase().as_str() {
+impl std::str::FromStr for OneofStrategy {
+    type Err = std::convert::Infallible;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(match s.to_lowercase().as_str() {
             "json" => OneofStrategy::Json,
             "tagged" => OneofStrategy::Tagged,
             _ => OneofStrategy::Flatten,
-        }
+        })
     }
 }
 
@@ -66,11 +67,7 @@ pub fn extract_oneofs(message: &DescriptorProto) -> Vec<OneofInfo> {
     let mut oneofs = Vec::new();
 
     for (idx, oneof_desc) in message.oneof_decl.iter().enumerate() {
-        let oneof_name = oneof_desc
-            .name
-            .as_ref()
-            .map(|s| s.as_str())
-            .unwrap_or("unknown");
+        let oneof_name = oneof_desc.name.as_deref().unwrap_or("unknown");
 
         // Skip synthetic oneofs (proto3 optional fields create oneofs starting with '_')
         if oneof_name.starts_with('_') {
@@ -109,7 +106,7 @@ pub fn extract_oneofs(message: &DescriptorProto) -> Vec<OneofInfo> {
 fn extract_oneof_settings(options: &Option<OneofOptions>) -> (OneofStrategy, String, String) {
     match options {
         Some(opts) => (
-            OneofStrategy::from_str(&opts.strategy),
+            opts.strategy.parse().unwrap_or_default(),
             opts.column_prefix.clone(),
             opts.discriminator_column.clone(),
         ),
@@ -134,10 +131,7 @@ pub fn is_oneof_field(field: &FieldDescriptorProto, message: &DescriptorProto) -
 }
 
 /// Generate fields for a flatten strategy oneof
-pub fn generate_flatten_fields(
-    oneof: &OneofInfo,
-    message: &DescriptorProto,
-) -> Vec<TokenStream> {
+pub fn generate_flatten_fields(oneof: &OneofInfo, message: &DescriptorProto) -> Vec<TokenStream> {
     let mut fields = Vec::new();
 
     for oneof_field in &oneof.fields {
@@ -157,8 +151,8 @@ pub fn generate_flatten_fields(
 
             let field_ident = format_ident!("{}", field_name.to_snake_case());
             let mapped = map_proto_type(field.r#type(), field.type_name.as_deref());
-            let rust_type: syn::Type = syn::parse_str(&mapped.rust_type)
-                .unwrap_or_else(|_| syn::parse_quote!(String));
+            let rust_type: syn::Type =
+                syn::parse_str(&mapped.rust_type).unwrap_or_else(|_| syn::parse_quote!(String));
 
             // All oneof fields are nullable since only one can be set
             let column_attr = quote! {
@@ -222,11 +216,26 @@ mod tests {
 
     #[test]
     fn test_oneof_strategy_from_str() {
-        assert_eq!(OneofStrategy::from_str("flatten"), OneofStrategy::Flatten);
-        assert_eq!(OneofStrategy::from_str("json"), OneofStrategy::Json);
-        assert_eq!(OneofStrategy::from_str("tagged"), OneofStrategy::Tagged);
-        assert_eq!(OneofStrategy::from_str("unknown"), OneofStrategy::Flatten);
-        assert_eq!(OneofStrategy::from_str("JSON"), OneofStrategy::Json);
+        assert_eq!(
+            "flatten".parse::<OneofStrategy>().unwrap(),
+            OneofStrategy::Flatten
+        );
+        assert_eq!(
+            "json".parse::<OneofStrategy>().unwrap(),
+            OneofStrategy::Json
+        );
+        assert_eq!(
+            "tagged".parse::<OneofStrategy>().unwrap(),
+            OneofStrategy::Tagged
+        );
+        assert_eq!(
+            "unknown".parse::<OneofStrategy>().unwrap(),
+            OneofStrategy::Flatten
+        );
+        assert_eq!(
+            "JSON".parse::<OneofStrategy>().unwrap(),
+            OneofStrategy::Json
+        );
     }
 
     #[test]

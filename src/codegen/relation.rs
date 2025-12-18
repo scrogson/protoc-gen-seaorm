@@ -245,13 +245,13 @@ fn find_self_ref_reverse(
         }
 
         // Check if they are complementary types
-        let is_complementary = match (current_type, rel_type) {
+        let is_complementary = matches!(
+            (current_type, rel_type),
             (RelationType::BelongsTo, RelationType::HasMany)
-            | (RelationType::BelongsTo, RelationType::HasOne)
-            | (RelationType::HasMany, RelationType::BelongsTo)
-            | (RelationType::HasOne, RelationType::BelongsTo) => true,
-            _ => false,
-        };
+                | (RelationType::BelongsTo, RelationType::HasOne)
+                | (RelationType::HasMany, RelationType::BelongsTo)
+                | (RelationType::HasOne, RelationType::BelongsTo)
+        );
 
         if is_complementary {
             // Check if they use the same foreign key
@@ -325,8 +325,11 @@ fn generate_relation_field_with_reverse(
     let target_entity: syn::Type = if is_self_ref {
         syn::parse_quote!(Entity)
     } else {
-        syn::parse_str(&format!("super::{}::Entity", rel_def.related.to_snake_case()))
-            .unwrap_or_else(|_| syn::parse_quote!(Entity))
+        syn::parse_str(&format!(
+            "super::{}::Entity",
+            rel_def.related.to_snake_case()
+        ))
+        .unwrap_or_else(|_| syn::parse_quote!(Entity))
     };
 
     match rel_type {
@@ -459,10 +462,7 @@ fn generate_relation_field_with_reverse(
 pub fn generate_relation_attribute(relation: &GeneratedRelation) -> String {
     match relation.relation_type {
         SeaOrmRelationType::HasOne => {
-            format!(
-                "has_one = \"{}\"",
-                relation.target_entity
-            )
+            format!("has_one = \"{}\"", relation.target_entity)
         }
         SeaOrmRelationType::HasMany => {
             if let Some(ref via) = relation.via_table {
@@ -471,10 +471,7 @@ pub fn generate_relation_attribute(relation: &GeneratedRelation) -> String {
                     relation.target_entity, via
                 )
             } else {
-                format!(
-                    "has_many = \"{}\"",
-                    relation.target_entity
-                )
+                format!("has_many = \"{}\"", relation.target_entity)
             }
         }
         SeaOrmRelationType::BelongsTo => {
@@ -484,7 +481,10 @@ pub fn generate_relation_attribute(relation: &GeneratedRelation) -> String {
                 "belongs_to = \"{}\", from = \"Column::{}\", to = \"super::{}::Column::{}\"",
                 relation.target_entity,
                 from.to_upper_camel_case(),
-                relation.target_entity.replace("super::", "").replace("::Entity", ""),
+                relation
+                    .target_entity
+                    .replace("super::", "")
+                    .replace("::Entity", ""),
                 to.to_upper_camel_case()
             )
         }
@@ -499,10 +499,7 @@ pub fn generate_relation_attribute(relation: &GeneratedRelation) -> String {
                 )
             } else {
                 // Without a junction table, fall back to has_many (user needs to specify via)
-                format!(
-                    "has_many = \"{}\"",
-                    relation.target_entity
-                )
+                format!("has_many = \"{}\"", relation.target_entity)
             }
         }
     }

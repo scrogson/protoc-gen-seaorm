@@ -48,12 +48,12 @@ const ONEOF_EXTENSION_NAME: &str = "seaorm.oneof";
 
 /// Lazily initialized descriptor pool with our extension definitions
 static DESCRIPTOR_POOL: Lazy<DescriptorPool> = Lazy::new(|| {
-    DescriptorPool::decode(FILE_DESCRIPTOR_SET_BYTES)
-        .expect("Failed to decode file descriptor set")
+    DescriptorPool::decode(FILE_DESCRIPTOR_SET_BYTES).expect("Failed to decode file descriptor set")
 });
 
 /// Global cache of pre-parsed options from raw bytes
-static OPTIONS_CACHE: Lazy<RwLock<OptionsCache>> = Lazy::new(|| RwLock::new(OptionsCache::default()));
+static OPTIONS_CACHE: Lazy<RwLock<OptionsCache>> =
+    Lazy::new(|| RwLock::new(OptionsCache::default()));
 
 /// Cache structure holding pre-parsed options
 #[derive(Default)]
@@ -84,7 +84,9 @@ pub fn preprocess_request_bytes(bytes: &[u8]) -> Result<(), String> {
     let request = DynamicMessage::decode(request_desc, bytes)
         .map_err(|e| format!("Failed to decode CodeGeneratorRequest: {}", e))?;
 
-    let mut cache = OPTIONS_CACHE.write().map_err(|e| format!("Lock error: {}", e))?;
+    let mut cache = OPTIONS_CACHE
+        .write()
+        .map_err(|e| format!("Lock error: {}", e))?;
 
     // Get proto_file field
     if let Some(cow) = request.get_field_by_name("proto_file") {
@@ -101,7 +103,10 @@ pub fn preprocess_request_bytes(bytes: &[u8]) -> Result<(), String> {
 }
 
 /// Extract options from a FileDescriptorProto DynamicMessage
-fn extract_options_from_file(cache: &mut OptionsCache, file: &DynamicMessage) -> Result<(), String> {
+fn extract_options_from_file(
+    cache: &mut OptionsCache,
+    file: &DynamicMessage,
+) -> Result<(), String> {
     let file_name = file
         .get_field_by_name("name")
         .and_then(|v| v.as_ref().as_str().map(|s| s.to_string()))
@@ -158,10 +163,9 @@ fn extract_message_options(
                 if opts_msg.has_extension(&ext_field) {
                     let ext_value = opts_msg.get_extension(&ext_field);
                     if let Some(model_opts) = convert_to_message_options(&ext_value) {
-                        cache.message_options.insert(
-                            (file_name.to_string(), full_name.clone()),
-                            model_opts,
-                        );
+                        cache
+                            .message_options
+                            .insert((file_name.to_string(), full_name.clone()), model_opts);
                     }
                 }
             }
@@ -186,12 +190,18 @@ fn extract_message_options(
 
                     if let Some(opts_cow) = field_msg.get_field_by_name("options") {
                         if let Some(opts_msg) = opts_cow.as_ref().as_message() {
-                            if let Some(ext_field) = DESCRIPTOR_POOL.get_extension_by_name("seaorm.field") {
+                            if let Some(ext_field) =
+                                DESCRIPTOR_POOL.get_extension_by_name("seaorm.field")
+                            {
                                 if opts_msg.has_extension(&ext_field) {
                                     let ext_value = opts_msg.get_extension(&ext_field);
                                     if let Some(field_opts) = convert_to_field_options(&ext_value) {
                                         cache.field_options.insert(
-                                            (file_name.to_string(), full_name.clone(), field_number),
+                                            (
+                                                file_name.to_string(),
+                                                full_name.clone(),
+                                                field_number,
+                                            ),
                                             field_opts,
                                         );
                                     }
@@ -211,7 +221,9 @@ fn extract_message_options(
                 if let Some(oneof_msg) = oneof_value.as_message() {
                     if let Some(opts_cow) = oneof_msg.get_field_by_name("options") {
                         if let Some(opts_msg) = opts_cow.as_ref().as_message() {
-                            if let Some(ext_field) = DESCRIPTOR_POOL.get_extension_by_name("seaorm.oneof") {
+                            if let Some(ext_field) =
+                                DESCRIPTOR_POOL.get_extension_by_name("seaorm.oneof")
+                            {
                                 if opts_msg.has_extension(&ext_field) {
                                     let ext_value = opts_msg.get_extension(&ext_field);
                                     if let Some(oneof_opts) = convert_to_oneof_options(&ext_value) {
@@ -288,10 +300,9 @@ fn extract_enum_options_nested(
                 if opts_msg.has_extension(&ext_field) {
                     let ext_value = opts_msg.get_extension(&ext_field);
                     if let Some(enum_opts) = convert_to_enum_options(&ext_value) {
-                        cache.enum_options.insert(
-                            (file_name.to_string(), full_name.clone()),
-                            enum_opts,
-                        );
+                        cache
+                            .enum_options
+                            .insert((file_name.to_string(), full_name.clone()), enum_opts);
                     }
                 }
             }
@@ -316,12 +327,20 @@ fn extract_enum_options_nested(
 
                     if let Some(opts_cow) = value_msg.get_field_by_name("options") {
                         if let Some(opts_msg) = opts_cow.as_ref().as_message() {
-                            if let Some(ext_field) = DESCRIPTOR_POOL.get_extension_by_name("seaorm.enum_value") {
+                            if let Some(ext_field) =
+                                DESCRIPTOR_POOL.get_extension_by_name("seaorm.enum_value")
+                            {
                                 if opts_msg.has_extension(&ext_field) {
                                     let ext_value = opts_msg.get_extension(&ext_field);
-                                    if let Some(value_opts) = convert_to_enum_value_options(&ext_value) {
+                                    if let Some(value_opts) =
+                                        convert_to_enum_value_options(&ext_value)
+                                    {
                                         cache.enum_value_options.insert(
-                                            (file_name.to_string(), full_name.clone(), value_number),
+                                            (
+                                                file_name.to_string(),
+                                                full_name.clone(),
+                                                value_number,
+                                            ),
                                             value_opts,
                                         );
                                     }
@@ -338,35 +357,54 @@ fn extract_enum_options_nested(
 }
 
 /// Look up cached message options for a given file and message name
-pub fn get_cached_message_options(file_name: &str, msg_name: &str) -> Option<seaorm::MessageOptions> {
-    OPTIONS_CACHE
-        .read()
-        .ok()
-        .and_then(|cache| cache.message_options.get(&(file_name.to_string(), msg_name.to_string())).cloned())
+pub fn get_cached_message_options(
+    file_name: &str,
+    msg_name: &str,
+) -> Option<seaorm::MessageOptions> {
+    OPTIONS_CACHE.read().ok().and_then(|cache| {
+        cache
+            .message_options
+            .get(&(file_name.to_string(), msg_name.to_string()))
+            .cloned()
+    })
 }
 
 /// Look up cached field options for a given file, message name, and field number
-pub fn get_cached_field_options(file_name: &str, msg_name: &str, field_number: i32) -> Option<seaorm::FieldOptions> {
-    OPTIONS_CACHE
-        .read()
-        .ok()
-        .and_then(|cache| cache.field_options.get(&(file_name.to_string(), msg_name.to_string(), field_number)).cloned())
+pub fn get_cached_field_options(
+    file_name: &str,
+    msg_name: &str,
+    field_number: i32,
+) -> Option<seaorm::FieldOptions> {
+    OPTIONS_CACHE.read().ok().and_then(|cache| {
+        cache
+            .field_options
+            .get(&(file_name.to_string(), msg_name.to_string(), field_number))
+            .cloned()
+    })
 }
 
 /// Look up cached enum options for a given file and enum name
 pub fn get_cached_enum_options(file_name: &str, enum_name: &str) -> Option<seaorm::EnumOptions> {
-    OPTIONS_CACHE
-        .read()
-        .ok()
-        .and_then(|cache| cache.enum_options.get(&(file_name.to_string(), enum_name.to_string())).cloned())
+    OPTIONS_CACHE.read().ok().and_then(|cache| {
+        cache
+            .enum_options
+            .get(&(file_name.to_string(), enum_name.to_string()))
+            .cloned()
+    })
 }
 
 /// Look up cached oneof options for a given file, message name, and oneof index
-pub fn get_cached_oneof_options(file_name: &str, msg_name: &str, oneof_index: i32) -> Option<seaorm::OneofOptions> {
-    OPTIONS_CACHE
-        .read()
-        .ok()
-        .and_then(|cache| cache.oneof_options.get(&(file_name.to_string(), msg_name.to_string(), oneof_index)).cloned())
+pub fn get_cached_oneof_options(
+    file_name: &str,
+    msg_name: &str,
+    oneof_index: i32,
+) -> Option<seaorm::OneofOptions> {
+    OPTIONS_CACHE.read().ok().and_then(|cache| {
+        cache
+            .oneof_options
+            .get(&(file_name.to_string(), msg_name.to_string(), oneof_index))
+            .cloned()
+    })
 }
 
 /// Parse SeaORM message options from a DescriptorProto
@@ -453,15 +491,14 @@ fn parse_message_options_from_extension(
     }
 
     // Get the MessageOptions descriptor from the pool
-    let message_options_desc = DESCRIPTOR_POOL
-        .get_message_by_name("google.protobuf.MessageOptions")?;
+    let message_options_desc =
+        DESCRIPTOR_POOL.get_message_by_name("google.protobuf.MessageOptions")?;
 
     // Decode the bytes as a DynamicMessage
     let dynamic_msg = DynamicMessage::decode(message_options_desc, &buf[..]).ok()?;
 
     // Try to get the extension field
-    let ext_field = DESCRIPTOR_POOL
-        .get_extension_by_name("seaorm.model")?;
+    let ext_field = DESCRIPTOR_POOL.get_extension_by_name("seaorm.model")?;
 
     if !dynamic_msg.has_extension(&ext_field) {
         return None;
@@ -484,13 +521,11 @@ fn parse_field_options_from_extension(
         return None;
     }
 
-    let field_options_desc = DESCRIPTOR_POOL
-        .get_message_by_name("google.protobuf.FieldOptions")?;
+    let field_options_desc = DESCRIPTOR_POOL.get_message_by_name("google.protobuf.FieldOptions")?;
 
     let dynamic_msg = DynamicMessage::decode(field_options_desc, &buf[..]).ok()?;
 
-    let ext_field = DESCRIPTOR_POOL
-        .get_extension_by_name("seaorm.field")?;
+    let ext_field = DESCRIPTOR_POOL.get_extension_by_name("seaorm.field")?;
 
     if !dynamic_msg.has_extension(&ext_field) {
         return None;
@@ -512,13 +547,11 @@ fn parse_enum_options_from_extension(
         return None;
     }
 
-    let enum_options_desc = DESCRIPTOR_POOL
-        .get_message_by_name("google.protobuf.EnumOptions")?;
+    let enum_options_desc = DESCRIPTOR_POOL.get_message_by_name("google.protobuf.EnumOptions")?;
 
     let dynamic_msg = DynamicMessage::decode(enum_options_desc, &buf[..]).ok()?;
 
-    let ext_field = DESCRIPTOR_POOL
-        .get_extension_by_name("seaorm.enum_opt")?;
+    let ext_field = DESCRIPTOR_POOL.get_extension_by_name("seaorm.enum_opt")?;
 
     if !dynamic_msg.has_extension(&ext_field) {
         return None;
@@ -540,13 +573,12 @@ fn parse_enum_value_options_from_extension(
         return None;
     }
 
-    let enum_value_options_desc = DESCRIPTOR_POOL
-        .get_message_by_name("google.protobuf.EnumValueOptions")?;
+    let enum_value_options_desc =
+        DESCRIPTOR_POOL.get_message_by_name("google.protobuf.EnumValueOptions")?;
 
     let dynamic_msg = DynamicMessage::decode(enum_value_options_desc, &buf[..]).ok()?;
 
-    let ext_field = DESCRIPTOR_POOL
-        .get_extension_by_name("seaorm.enum_value")?;
+    let ext_field = DESCRIPTOR_POOL.get_extension_by_name("seaorm.enum_value")?;
 
     if !dynamic_msg.has_extension(&ext_field) {
         return None;
@@ -568,13 +600,11 @@ fn parse_oneof_options_from_extension(
         return None;
     }
 
-    let oneof_options_desc = DESCRIPTOR_POOL
-        .get_message_by_name("google.protobuf.OneofOptions")?;
+    let oneof_options_desc = DESCRIPTOR_POOL.get_message_by_name("google.protobuf.OneofOptions")?;
 
     let dynamic_msg = DynamicMessage::decode(oneof_options_desc, &buf[..]).ok()?;
 
-    let ext_field = DESCRIPTOR_POOL
-        .get_extension_by_name("seaorm.oneof")?;
+    let ext_field = DESCRIPTOR_POOL.get_extension_by_name("seaorm.oneof")?;
 
     if !dynamic_msg.has_extension(&ext_field) {
         return None;
@@ -1381,12 +1411,8 @@ fn parse_relation_type(s: &str) -> i32 {
         "RELATION_TYPE_BELONGS_TO" | "belongs_to" | "BelongsTo" => {
             seaorm::RelationType::BelongsTo as i32
         }
-        "RELATION_TYPE_HAS_ONE" | "has_one" | "HasOne" => {
-            seaorm::RelationType::HasOne as i32
-        }
-        "RELATION_TYPE_HAS_MANY" | "has_many" | "HasMany" => {
-            seaorm::RelationType::HasMany as i32
-        }
+        "RELATION_TYPE_HAS_ONE" | "has_one" | "HasOne" => seaorm::RelationType::HasOne as i32,
+        "RELATION_TYPE_HAS_MANY" | "has_many" | "HasMany" => seaorm::RelationType::HasMany as i32,
         "RELATION_TYPE_MANY_TO_MANY" | "many_to_many" | "ManyToMany" => {
             seaorm::RelationType::ManyToMany as i32
         }

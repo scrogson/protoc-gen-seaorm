@@ -3,7 +3,7 @@
 //! Tests the generated SeaORM entities with actual database operations.
 
 use sea_orm::{
-    ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, QuerySelect, Database,
+    ColumnTrait, Database, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, QuerySelect,
 };
 use seaorm_example::entity::example::{post, user};
 
@@ -55,10 +55,7 @@ async fn test_find_user_by_id() {
         .unwrap();
 
     // Find by ID
-    let found = user::Entity::find_by_id(created.id)
-        .one(&db)
-        .await
-        .unwrap();
+    let found = user::Entity::find_by_id(created.id).one(&db).await.unwrap();
 
     assert!(found.is_some());
     let found = found.unwrap();
@@ -233,7 +230,10 @@ async fn test_filter_users_by_name() {
     // Create users with different names
     for name in ["Alice", "Bob", "Alice Jr", "Charlie"] {
         user::ActiveModel::builder()
-            .set_email(format!("{}@example.com", name.to_lowercase().replace(' ', "")))
+            .set_email(format!(
+                "{}@example.com",
+                name.to_lowercase().replace(' ', "")
+            ))
             .set_name(name)
             .set_created_at(chrono::Utc::now())
             .insert(&db)

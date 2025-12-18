@@ -17,8 +17,8 @@
 pub mod entity {
     /// Example entities (User, Post)
     pub mod example {
-        pub mod prelude;
         pub mod post;
+        pub mod prelude;
         pub mod user;
 
         pub use post::Entity as Post;
