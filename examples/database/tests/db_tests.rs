@@ -3,8 +3,7 @@
 //! Tests the generated SeaORM entities with actual database operations.
 
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder,
-    QuerySelect, Set, Database,
+    ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, QuerySelect, Database,
 };
 use seaorm_example::entity::example::{post, user};
 
@@ -29,14 +28,13 @@ async fn setup_db() -> DatabaseConnection {
 async fn test_create_user() {
     let db = setup_db().await;
 
-    let user = user::ActiveModel {
-        email: Set("test@example.com".to_string()),
-        name: Set("Test User".to_string()),
-        created_at: Set(chrono::Utc::now()),
-        ..Default::default()
-    };
-
-    let result = user.insert(&db).await.unwrap();
+    let result = user::ActiveModel::builder()
+        .set_email("test@example.com")
+        .set_name("Test User")
+        .set_created_at(chrono::Utc::now())
+        .insert(&db)
+        .await
+        .unwrap();
 
     assert_eq!(result.email, "test@example.com");
     assert_eq!(result.name, "Test User");
@@ -48,13 +46,13 @@ async fn test_find_user_by_id() {
     let db = setup_db().await;
 
     // Create a user
-    let user = user::ActiveModel {
-        email: Set("findme@example.com".to_string()),
-        name: Set("Find Me".to_string()),
-        created_at: Set(chrono::Utc::now()),
-        ..Default::default()
-    };
-    let created = user.insert(&db).await.unwrap();
+    let created = user::ActiveModel::builder()
+        .set_email("findme@example.com")
+        .set_name("Find Me")
+        .set_created_at(chrono::Utc::now())
+        .insert(&db)
+        .await
+        .unwrap();
 
     // Find by ID
     let found = user::Entity::find_by_id(created.id)
@@ -72,13 +70,13 @@ async fn test_find_user_by_email() {
     let db = setup_db().await;
 
     // Create a user
-    let user = user::ActiveModel {
-        email: Set("unique@example.com".to_string()),
-        name: Set("Unique User".to_string()),
-        created_at: Set(chrono::Utc::now()),
-        ..Default::default()
-    };
-    user.insert(&db).await.unwrap();
+    user::ActiveModel::builder()
+        .set_email("unique@example.com")
+        .set_name("Unique User")
+        .set_created_at(chrono::Utc::now())
+        .insert(&db)
+        .await
+        .unwrap();
 
     // Find by email
     let found = user::Entity::find()
@@ -96,18 +94,21 @@ async fn test_update_user() {
     let db = setup_db().await;
 
     // Create a user
-    let user = user::ActiveModel {
-        email: Set("update@example.com".to_string()),
-        name: Set("Original Name".to_string()),
-        created_at: Set(chrono::Utc::now()),
-        ..Default::default()
-    };
-    let created = user.insert(&db).await.unwrap();
+    let created = user::ActiveModel::builder()
+        .set_email("update@example.com")
+        .set_name("Original Name")
+        .set_created_at(chrono::Utc::now())
+        .insert(&db)
+        .await
+        .unwrap();
 
-    // Update the user
-    let mut active: user::ActiveModel = created.into();
-    active.name = Set("Updated Name".to_string());
-    let updated = active.update(&db).await.unwrap();
+    // Update the user - build a new ActiveModel with the ID set
+    let updated = user::ActiveModel::builder()
+        .set_id(created.id)
+        .set_name("Updated Name")
+        .update(&db)
+        .await
+        .unwrap();
 
     assert_eq!(updated.name, "Updated Name");
     assert_eq!(updated.email, "update@example.com");
@@ -118,18 +119,17 @@ async fn test_delete_user() {
     let db = setup_db().await;
 
     // Create a user
-    let user = user::ActiveModel {
-        email: Set("delete@example.com".to_string()),
-        name: Set("Delete Me".to_string()),
-        created_at: Set(chrono::Utc::now()),
-        ..Default::default()
-    };
-    let created = user.insert(&db).await.unwrap();
+    let created = user::ActiveModel::builder()
+        .set_email("delete@example.com")
+        .set_name("Delete Me")
+        .set_created_at(chrono::Utc::now())
+        .insert(&db)
+        .await
+        .unwrap();
     let user_id = created.id;
 
-    // Delete the user
-    let active: user::ActiveModel = created.into();
-    active.delete(&db).await.unwrap();
+    // Delete the user by ID
+    user::Entity::delete_by_id(user_id).exec(&db).await.unwrap();
 
     // Verify deleted
     let found = user::Entity::find_by_id(user_id).one(&db).await.unwrap();
@@ -145,23 +145,23 @@ async fn test_create_post_for_user() {
     let db = setup_db().await;
 
     // Create a user
-    let user = user::ActiveModel {
-        email: Set("author@example.com".to_string()),
-        name: Set("Author".to_string()),
-        created_at: Set(chrono::Utc::now()),
-        ..Default::default()
-    };
-    let author = user.insert(&db).await.unwrap();
+    let author = user::ActiveModel::builder()
+        .set_email("author@example.com")
+        .set_name("Author")
+        .set_created_at(chrono::Utc::now())
+        .insert(&db)
+        .await
+        .unwrap();
 
     // Create a post for the user
-    let post = post::ActiveModel {
-        title: Set("My First Post".to_string()),
-        content: Set("Hello, world!".to_string()),
-        author_id: Set(author.id),
-        created_at: Set(chrono::Utc::now()),
-        ..Default::default()
-    };
-    let created_post = post.insert(&db).await.unwrap();
+    let created_post = post::ActiveModel::builder()
+        .set_title("My First Post")
+        .set_content("Hello, world!")
+        .set_author_id(author.id)
+        .set_created_at(chrono::Utc::now())
+        .insert(&db)
+        .await
+        .unwrap();
 
     assert_eq!(created_post.title, "My First Post");
     assert_eq!(created_post.author_id, author.id);
@@ -172,24 +172,24 @@ async fn test_find_posts_by_author() {
     let db = setup_db().await;
 
     // Create a user
-    let user = user::ActiveModel {
-        email: Set("prolific@example.com".to_string()),
-        name: Set("Prolific Writer".to_string()),
-        created_at: Set(chrono::Utc::now()),
-        ..Default::default()
-    };
-    let author = user.insert(&db).await.unwrap();
+    let author = user::ActiveModel::builder()
+        .set_email("prolific@example.com")
+        .set_name("Prolific Writer")
+        .set_created_at(chrono::Utc::now())
+        .insert(&db)
+        .await
+        .unwrap();
 
     // Create multiple posts
     for i in 1..=3 {
-        let post = post::ActiveModel {
-            title: Set(format!("Post {}", i)),
-            content: Set(format!("Content {}", i)),
-            author_id: Set(author.id),
-            created_at: Set(chrono::Utc::now()),
-            ..Default::default()
-        };
-        post.insert(&db).await.unwrap();
+        post::ActiveModel::builder()
+            .set_title(format!("Post {}", i))
+            .set_content(format!("Content {}", i))
+            .set_author_id(author.id)
+            .set_created_at(chrono::Utc::now())
+            .insert(&db)
+            .await
+            .unwrap();
     }
 
     // Find all posts by this author
@@ -212,13 +212,13 @@ async fn test_find_all_users() {
 
     // Create multiple users
     for i in 1..=5 {
-        let user = user::ActiveModel {
-            email: Set(format!("user{}@example.com", i)),
-            name: Set(format!("User {}", i)),
-            created_at: Set(chrono::Utc::now()),
-            ..Default::default()
-        };
-        user.insert(&db).await.unwrap();
+        user::ActiveModel::builder()
+            .set_email(format!("user{}@example.com", i))
+            .set_name(format!("User {}", i))
+            .set_created_at(chrono::Utc::now())
+            .insert(&db)
+            .await
+            .unwrap();
     }
 
     // Find all
@@ -232,13 +232,13 @@ async fn test_filter_users_by_name() {
 
     // Create users with different names
     for name in ["Alice", "Bob", "Alice Jr", "Charlie"] {
-        let user = user::ActiveModel {
-            email: Set(format!("{}@example.com", name.to_lowercase().replace(' ', ""))),
-            name: Set(name.to_string()),
-            created_at: Set(chrono::Utc::now()),
-            ..Default::default()
-        };
-        user.insert(&db).await.unwrap();
+        user::ActiveModel::builder()
+            .set_email(format!("{}@example.com", name.to_lowercase().replace(' ', "")))
+            .set_name(name)
+            .set_created_at(chrono::Utc::now())
+            .insert(&db)
+            .await
+            .unwrap();
     }
 
     // Filter by name containing "Alice"
@@ -257,13 +257,13 @@ async fn test_order_users_by_name() {
 
     // Create users in random order
     for name in ["Charlie", "Alice", "Bob"] {
-        let user = user::ActiveModel {
-            email: Set(format!("{}@example.com", name.to_lowercase())),
-            name: Set(name.to_string()),
-            created_at: Set(chrono::Utc::now()),
-            ..Default::default()
-        };
-        user.insert(&db).await.unwrap();
+        user::ActiveModel::builder()
+            .set_email(format!("{}@example.com", name.to_lowercase()))
+            .set_name(name)
+            .set_created_at(chrono::Utc::now())
+            .insert(&db)
+            .await
+            .unwrap();
     }
 
     // Order by name ascending
@@ -285,13 +285,13 @@ async fn test_paginate_users() {
 
     // Create 10 users
     for i in 1..=10 {
-        let user = user::ActiveModel {
-            email: Set(format!("page{}@example.com", i)),
-            name: Set(format!("Page User {}", i)),
-            created_at: Set(chrono::Utc::now()),
-            ..Default::default()
-        };
-        user.insert(&db).await.unwrap();
+        user::ActiveModel::builder()
+            .set_email(format!("page{}@example.com", i))
+            .set_name(format!("Page User {}", i))
+            .set_created_at(chrono::Utc::now())
+            .insert(&db)
+            .await
+            .unwrap();
     }
 
     // Get first page (5 items)

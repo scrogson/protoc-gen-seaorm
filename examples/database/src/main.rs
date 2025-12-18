@@ -1,8 +1,8 @@
 //! Database Example Demo
 //!
-//! Demonstrates creating and querying entities with SeaORM 2.0.
+//! Demonstrates creating and querying entities with SeaORM 2.0's builder pattern.
 
-use sea_orm::{ActiveModelTrait, Database, EntityTrait, Set};
+use sea_orm::{Database, EntityTrait};
 use seaorm_example::entity::example::{post, user};
 
 #[tokio::main]
@@ -16,27 +16,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .sync(&db)
         .await?;
 
-    // Create a user
-    let user = user::ActiveModel {
-        email: Set("alice@example.com".to_string()),
-        name: Set("Alice".to_string()),
-        created_at: Set(chrono::Utc::now()),
-        ..Default::default()
-    };
-
-    let user = user.insert(&db).await?;
+    // Create a user using the builder pattern
+    let user = user::ActiveModel::builder()
+        .set_email("alice@example.com")
+        .set_name("Alice")
+        .set_created_at(chrono::Utc::now())
+        .insert(&db)
+        .await?;
     println!("Created user: {} (id={})", user.name, user.id);
 
-    // Create some posts
+    // Create some posts using the builder pattern
     for i in 1..=3 {
-        let post = post::ActiveModel {
-            title: Set(format!("Post #{}", i)),
-            content: Set(format!("Content of post #{}", i)),
-            author_id: Set(user.id),
-            created_at: Set(chrono::Utc::now()),
-            ..Default::default()
-        };
-        let post = post.insert(&db).await?;
+        let post = post::ActiveModel::builder()
+            .set_title(format!("Post #{}", i))
+            .set_content(format!("Content of post #{}", i))
+            .set_author_id(user.id)
+            .set_created_at(chrono::Utc::now())
+            .insert(&db)
+            .await?;
         println!("Created post: {} (id={})", post.title, post.id);
     }
 
