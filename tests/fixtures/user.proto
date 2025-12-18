@@ -1,6 +1,6 @@
-// Test fixture for protoc-gen-seaorm
+// Comprehensive test fixture for protoc-gen-seaorm
 //
-// This proto file demonstrates the SeaORM options syntax.
+// This proto file demonstrates all SeaORM options and features.
 
 syntax = "proto3";
 
@@ -9,14 +9,84 @@ package test.models;
 import "seaorm/options.proto";
 import "google/protobuf/timestamp.proto";
 
-// User entity with various column types and options
-// Using message-level relations (recommended)
+// =============================================================================
+// ENUMS
+// =============================================================================
+
+// User status stored as string in database
+enum UserStatus {
+  option (seaorm.enum_opt) = {
+    db_type: "string"
+  };
+
+  USER_STATUS_UNSPECIFIED = 0;
+  USER_STATUS_PENDING = 1;
+  USER_STATUS_ACTIVE = 2;
+  USER_STATUS_SUSPENDED = 3;
+  USER_STATUS_DELETED = 4;
+}
+
+// Priority level stored as integer in database
+enum Priority {
+  option (seaorm.enum_opt) = {
+    db_type: "integer"
+  };
+
+  PRIORITY_UNSPECIFIED = 0;
+  PRIORITY_LOW = 1;
+  PRIORITY_MEDIUM = 2;
+  PRIORITY_HIGH = 3;
+  PRIORITY_CRITICAL = 4;
+}
+
+// Enum without seaorm options (should be skipped)
+enum SkippedEnum {
+  SKIPPED_ENUM_UNSPECIFIED = 0;
+}
+
+// =============================================================================
+// EMBEDDED TYPES (for JSONB columns)
+// =============================================================================
+
+// Address embedded in User as JSONB
+message Address {
+  string street = 1;
+  string city = 2;
+  string state = 3;
+  string zip_code = 4;
+  string country = 5;
+}
+
+// Social links embedded as JSONB
+message SocialLinks {
+  string twitter = 1;
+  string github = 2;
+  string linkedin = 3;
+  string website = 4;
+}
+
+// Notification preferences embedded as JSONB
+message NotificationPreferences {
+  bool email_enabled = 1;
+  bool push_enabled = 2;
+  bool sms_enabled = 3;
+  repeated string subscribed_topics = 4;
+}
+
+// =============================================================================
+// MAIN ENTITIES
+// =============================================================================
+
+// User entity demonstrating most field options
 message User {
   option (seaorm.model) = {
     table_name: "users"
+    indexes: ["idx_users_email", "idx_users_status_created:status,created_at"]
     relations: [
-      {name: "posts", type: RELATION_TYPE_HAS_MANY, related: "post"},
-      {name: "profile", type: RELATION_TYPE_HAS_ONE, related: "profile"}
+      {name: "posts", type: RELATION_TYPE_HAS_MANY, related: "post", foreign_key: "author_id"},
+      {name: "profile", type: RELATION_TYPE_HAS_ONE, related: "user_profile"},
+      {name: "comments", type: RELATION_TYPE_HAS_MANY, related: "comment"},
+      {name: "roles", type: RELATION_TYPE_MANY_TO_MANY, related: "role", through: "user_roles"}
     ]
   };
 
@@ -26,26 +96,64 @@ message User {
     auto_increment: true
   }];
 
-  // Unique email field
-  string email = 2 [(seaorm.field).unique = true];
+  // UUID field with explicit column type
+  string uuid = 2 [(seaorm.field) = {
+    column_type: "Uuid",
+    unique: true
+  }];
 
-  // Regular string field
-  string name = 3;
+  // Unique email with column name override
+  string email = 3 [(seaorm.field) = {
+    unique: true,
+    column_name: "email_address"
+  }];
 
-  // Nullable field with explicit column type
-  optional string bio = 4 [(seaorm.field).nullable = true];
+  // Username with default value
+  string username = 4 [(seaorm.field) = {
+    unique: true,
+    default_value: "anonymous"
+  }];
 
-  // Timestamp fields
-  google.protobuf.Timestamp created_at = 5;
-  google.protobuf.Timestamp updated_at = 6;
+  // Password hash (not nullable)
+  string password_hash = 5;
+
+  // Display name (nullable via optional)
+  optional string display_name = 6;
+
+  // User status enum
+  UserStatus status = 7;
+
+  // Embedded address as JSONB
+  Address address = 8 [(seaorm.field).embed = true];
+
+  // Optional embedded social links
+  optional SocialLinks social_links = 9 [(seaorm.field).embed = true];
+
+  // Embedded notification preferences with custom column name
+  NotificationPreferences preferences = 10 [(seaorm.field) = {
+    embed: true,
+    column_name: "notification_prefs"
+  }];
+
+  // Login count with default
+  int32 login_count = 11 [(seaorm.field).default_value = "0"];
+
+  // Boolean flags
+  bool is_verified = 12;
+  bool is_admin = 13 [(seaorm.field).default_value = "false"];
+
+  // Timestamps
+  google.protobuf.Timestamp created_at = 14;
+  google.protobuf.Timestamp updated_at = 15;
+  optional google.protobuf.Timestamp deleted_at = 16;
 }
 
-// Post entity with belongs_to relation using message-level relation
-message Post {
+// User profile with has_one relationship back to user
+message UserProfile {
   option (seaorm.model) = {
-    table_name: "posts"
+    table_name: "user_profiles"
     relations: [
-      {name: "author", type: RELATION_TYPE_BELONGS_TO, related: "user", foreign_key: "user_id"}
+      {name: "user", type: RELATION_TYPE_BELONGS_TO, related: "user", foreign_key: "user_id", references: "id"}
     ]
   };
 
@@ -54,27 +162,90 @@ message Post {
     auto_increment: true
   }];
 
-  string title = 2;
-  string content = 3 [(seaorm.field).column_type = "Text"];
+  int64 user_id = 2 [(seaorm.field).unique = true];
 
-  // Foreign key to User (just a regular column now, relation is defined above)
-  int64 user_id = 4;
+  optional string bio = 3 [(seaorm.field).column_type = "Text"];
 
-  google.protobuf.Timestamp published_at = 5 [(seaorm.field).nullable = true];
+  optional string avatar_url = 4;
+
+  optional string cover_image_url = 5;
+
+  google.protobuf.Timestamp created_at = 6;
+  google.protobuf.Timestamp updated_at = 7;
 }
 
-// Message without seaorm options (should be skipped)
-message SkippedMessage {
-  string field = 1;
+// Post entity with various relation types
+message Post {
+  option (seaorm.model) = {
+    table_name: "posts"
+    indexes: ["idx_posts_author", "idx_posts_published_at"]
+    relations: [
+      {name: "author", type: RELATION_TYPE_BELONGS_TO, related: "user", foreign_key: "author_id"},
+      {name: "comments", type: RELATION_TYPE_HAS_MANY, related: "comment"},
+      {name: "tags", type: RELATION_TYPE_MANY_TO_MANY, related: "tag", through: "post_tags"}
+    ]
+  };
+
+  int64 id = 1 [(seaorm.field) = {
+    primary_key: true,
+    auto_increment: true
+  }];
+
+  string slug = 2 [(seaorm.field).unique = true];
+
+  string title = 3;
+
+  string content = 4 [(seaorm.field).column_type = "Text"];
+
+  optional string excerpt = 5 [(seaorm.field).column_type = "Text"];
+
+  // Foreign key to User
+  int64 author_id = 6;
+
+  // Post priority
+  Priority priority = 7;
+
+  bool is_published = 8 [(seaorm.field).default_value = "false"];
+
+  int32 view_count = 9 [(seaorm.field).default_value = "0"];
+
+  google.protobuf.Timestamp created_at = 10;
+  google.protobuf.Timestamp updated_at = 11;
+  optional google.protobuf.Timestamp published_at = 12;
 }
 
-// Message explicitly marked to skip
-message ExplicitlySkipped {
-  option (seaorm.model).skip = true;
-  string field = 1;
+// Comment with belongs_to relations to both User and Post
+message Comment {
+  option (seaorm.model) = {
+    table_name: "comments"
+    relations: [
+      {name: "author", type: RELATION_TYPE_BELONGS_TO, related: "user", foreign_key: "user_id"},
+      {name: "post", type: RELATION_TYPE_BELONGS_TO, related: "post", foreign_key: "post_id"},
+      {name: "parent", type: RELATION_TYPE_BELONGS_TO, related: "comment", foreign_key: "parent_id"},
+      {name: "replies", type: RELATION_TYPE_HAS_MANY, related: "comment", foreign_key: "parent_id"}
+    ]
+  };
+
+  int64 id = 1 [(seaorm.field) = {
+    primary_key: true,
+    auto_increment: true
+  }];
+
+  int64 user_id = 2;
+  int64 post_id = 3;
+
+  // Self-referential for nested comments
+  optional int64 parent_id = 4;
+
+  string content = 5 [(seaorm.field).column_type = "Text"];
+
+  bool is_edited = 6 [(seaorm.field).default_value = "false"];
+
+  google.protobuf.Timestamp created_at = 7;
+  google.protobuf.Timestamp updated_at = 8;
 }
 
-// Tag entity for many-to-many testing
+// Tag entity
 message Tag {
   option (seaorm.model) = {
     table_name: "tags"
@@ -88,40 +259,261 @@ message Tag {
     auto_increment: true
   }];
 
-  string name = 2;
+  string name = 2 [(seaorm.field).unique = true];
+
+  string slug = 3 [(seaorm.field).unique = true];
+
+  optional string description = 4;
+
+  int32 post_count = 5 [(seaorm.field).default_value = "0"];
 }
 
-// Junction table for Post-Tag many-to-many
-message PostTag {
-  option (seaorm.model).table_name = "post_tags";
-
-  int64 post_id = 1 [(seaorm.field).primary_key = true];
-  int64 tag_id = 2 [(seaorm.field).primary_key = true];
-}
-
-// Embedded metadata message (stored as JSONB)
-message Metadata {
-  string key = 1;
-  string value = 2;
-}
-
-// Article with embedded metadata (JSONB)
-message Article {
-  option (seaorm.model).table_name = "articles";
+// Role entity for RBAC
+message Role {
+  option (seaorm.model) = {
+    table_name: "roles"
+    relations: [
+      {name: "users", type: RELATION_TYPE_MANY_TO_MANY, related: "user", through: "user_roles"},
+      {name: "permissions", type: RELATION_TYPE_MANY_TO_MANY, related: "permission", through: "role_permissions"}
+    ]
+  };
 
   int64 id = 1 [(seaorm.field) = {
     primary_key: true,
     auto_increment: true
   }];
 
-  string title = 2;
+  string name = 2 [(seaorm.field).unique = true];
 
-  // Embedded JSON field
-  Metadata metadata = 3 [(seaorm.field).embed = true];
+  optional string description = 3;
 
-  // Optional embedded JSON field
-  optional Metadata extra = 4 [(seaorm.field) = {
-    embed: true,
-    nullable: true
+  google.protobuf.Timestamp created_at = 4;
+}
+
+// Permission entity
+message Permission {
+  option (seaorm.model) = {
+    table_name: "permissions"
+    relations: [
+      {name: "roles", type: RELATION_TYPE_MANY_TO_MANY, related: "role", through: "role_permissions"}
+    ]
+  };
+
+  int64 id = 1 [(seaorm.field) = {
+    primary_key: true,
+    auto_increment: true
   }];
+
+  string name = 2 [(seaorm.field).unique = true];
+
+  string resource = 3;
+
+  string action = 4;
+}
+
+// =============================================================================
+// JUNCTION TABLES (for many-to-many relations)
+// =============================================================================
+
+// Junction table for Post-Tag many-to-many (composite primary key)
+message PostTag {
+  option (seaorm.model).table_name = "post_tags";
+
+  int64 post_id = 1 [(seaorm.field).primary_key = true];
+  int64 tag_id = 2 [(seaorm.field).primary_key = true];
+
+  google.protobuf.Timestamp created_at = 3;
+}
+
+// Junction table for User-Role many-to-many
+message UserRole {
+  option (seaorm.model).table_name = "user_roles";
+
+  int64 user_id = 1 [(seaorm.field).primary_key = true];
+  int64 role_id = 2 [(seaorm.field).primary_key = true];
+
+  google.protobuf.Timestamp granted_at = 3;
+  optional int64 granted_by = 4;
+}
+
+// Junction table for Role-Permission many-to-many
+message RolePermission {
+  option (seaorm.model).table_name = "role_permissions";
+
+  int64 role_id = 1 [(seaorm.field).primary_key = true];
+  int64 permission_id = 2 [(seaorm.field).primary_key = true];
+}
+
+// =============================================================================
+// ONEOF EXAMPLES (different strategies)
+// =============================================================================
+
+// Payment with oneof using FLATTEN strategy (default)
+// Each variant becomes a nullable column
+message Payment {
+  option (seaorm.model).table_name = "payments";
+
+  int64 id = 1 [(seaorm.field) = {
+    primary_key: true,
+    auto_increment: true
+  }];
+
+  int64 user_id = 2;
+
+  // Amount in cents
+  int64 amount = 3;
+
+  string currency = 4 [(seaorm.field).default_value = "USD"];
+
+  // Payment method - flattened into separate nullable columns
+  oneof payment_method {
+    option (seaorm.oneof).strategy = "flatten";
+
+    string credit_card_token = 10;
+    string bank_account_id = 11;
+    string paypal_email = 12;
+    string crypto_wallet = 13;
+  }
+
+  google.protobuf.Timestamp created_at = 20;
+}
+
+// Audit event with oneof using JSON strategy
+// Stored as a single JSONB column with discriminator
+message AuditEvent {
+  option (seaorm.model).table_name = "audit_events";
+
+  int64 id = 1 [(seaorm.field) = {
+    primary_key: true,
+    auto_increment: true
+  }];
+
+  int64 user_id = 2;
+
+  string action = 3;
+
+  // Event details stored as JSON
+  oneof event_details {
+    option (seaorm.oneof).strategy = "json";
+
+    LoginEvent login = 10;
+    LogoutEvent logout = 11;
+    PasswordChangeEvent password_change = 12;
+    ProfileUpdateEvent profile_update = 13;
+  }
+
+  google.protobuf.Timestamp created_at = 20;
+}
+
+// Event detail types for AuditEvent
+message LoginEvent {
+  string ip_address = 1;
+  string user_agent = 2;
+  bool success = 3;
+}
+
+message LogoutEvent {
+  string reason = 1;
+}
+
+message PasswordChangeEvent {
+  bool forced = 1;
+}
+
+message ProfileUpdateEvent {
+  repeated string changed_fields = 1;
+}
+
+// Notification with oneof using TAGGED strategy
+// Stores type tag + value in separate columns
+message Notification {
+  option (seaorm.model).table_name = "notifications";
+
+  int64 id = 1 [(seaorm.field) = {
+    primary_key: true,
+    auto_increment: true
+  }];
+
+  int64 user_id = 2;
+
+  string title = 3;
+
+  bool is_read = 4 [(seaorm.field).default_value = "false"];
+
+  // Notification payload with tagged union strategy
+  oneof payload {
+    option (seaorm.oneof) = {
+      strategy: "tagged",
+      discriminator_column: "payload_type"
+    };
+
+    string simple_message = 10;
+    int64 related_post_id = 11;
+    int64 related_comment_id = 12;
+    int64 related_user_id = 13;
+  }
+
+  google.protobuf.Timestamp created_at = 20;
+  optional google.protobuf.Timestamp read_at = 21;
+}
+
+// =============================================================================
+// SKIP EXAMPLES
+// =============================================================================
+
+// Message without seaorm options (implicitly skipped)
+message InternalRequest {
+  string request_id = 1;
+  bytes payload = 2;
+}
+
+// Message explicitly marked to skip
+message TemporaryData {
+  option (seaorm.model).skip = true;
+
+  string session_id = 1;
+  bytes data = 2;
+}
+
+// =============================================================================
+// ADDITIONAL DATA TYPES
+// =============================================================================
+
+// Entity demonstrating various data types
+message DataTypesExample {
+  option (seaorm.model).table_name = "data_types_examples";
+
+  int64 id = 1 [(seaorm.field) = {
+    primary_key: true,
+    auto_increment: true
+  }];
+
+  // Integer types
+  int32 int32_field = 2;
+  int64 int64_field = 3;
+  uint32 uint32_field = 4;
+  uint64 uint64_field = 5;
+  sint32 sint32_field = 6;
+  sint64 sint64_field = 7;
+  fixed32 fixed32_field = 8;
+  fixed64 fixed64_field = 9;
+  sfixed32 sfixed32_field = 10;
+  sfixed64 sfixed64_field = 11;
+
+  // Floating point
+  float float_field = 12;
+  double double_field = 13;
+
+  // Boolean
+  bool bool_field = 14;
+
+  // String and bytes
+  string string_field = 15;
+  bytes bytes_field = 16;
+
+  // Explicit column types
+  string uuid_field = 17 [(seaorm.field).column_type = "Uuid"];
+  string decimal_field = 18 [(seaorm.field).column_type = "Decimal"];
+  string text_field = 19 [(seaorm.field).column_type = "Text"];
+  bytes binary_field = 20 [(seaorm.field).column_type = "Binary"];
 }

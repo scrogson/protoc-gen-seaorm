@@ -883,7 +883,7 @@ fn test_generate_entity_with_embed_field() {
             name_part: "seaorm.field".to_string(),
             is_extension: true,
         }],
-        aggregate_value: Some("embed: true, nullable: true".to_string()),
+        aggregate_value: Some("embed: true".to_string()),
         ..Default::default()
     };
 
