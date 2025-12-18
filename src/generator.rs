@@ -1,0 +1,37 @@
+//! Code generation orchestration
+//!
+//! This module coordinates the overall code generation process,
+//! iterating through proto files and generating SeaORM entities.
+
+use crate::GeneratorError;
+use prost_types::compiler::{CodeGeneratorRequest, CodeGeneratorResponse};
+
+/// Generate SeaORM entities from a CodeGeneratorRequest
+pub fn generate(request: CodeGeneratorRequest) -> Result<CodeGeneratorResponse, GeneratorError> {
+    let mut files = Vec::new();
+
+    // Process each file that was requested for generation
+    for file_name in &request.file_to_generate {
+        // Find the corresponding FileDescriptorProto
+        let file_descriptor = request
+            .proto_file
+            .iter()
+            .find(|f| f.name.as_ref() == Some(file_name))
+            .ok_or_else(|| {
+                GeneratorError::CodeGenError(format!("File descriptor not found: {}", file_name))
+            })?;
+
+        // Process each message in the file
+        for message in &file_descriptor.message_type {
+            if let Some(generated) = crate::codegen::generate_entity(file_descriptor, message)? {
+                files.push(generated);
+            }
+        }
+    }
+
+    Ok(CodeGeneratorResponse {
+        file: files,
+        error: None,
+        supported_features: Some(1), // FEATURE_PROTO3_OPTIONAL
+    })
+}

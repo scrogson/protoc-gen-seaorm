@@ -1,0 +1,70 @@
+// Test fixture for protoc-gen-seaorm
+//
+// This proto file demonstrates the SeaORM options syntax.
+
+syntax = "proto3";
+
+package test.models;
+
+import "seaorm/options.proto";
+import "google/protobuf/timestamp.proto";
+
+// User entity with various column types and options
+message User {
+  option (seaorm.message).table_name = "users";
+
+  // Primary key with auto-increment
+  int64 id = 1 [(seaorm.field) = {
+    primary_key: true,
+    auto_increment: true
+  }];
+
+  // Unique email field
+  string email = 2 [(seaorm.field).unique = true];
+
+  // Regular string field
+  string name = 3;
+
+  // Nullable field with explicit column type
+  optional string bio = 4 [(seaorm.field).nullable = true];
+
+  // Timestamp fields
+  google.protobuf.Timestamp created_at = 5;
+  google.protobuf.Timestamp updated_at = 6;
+
+  // Relation: User has many Posts
+  repeated Post posts = 7 [(seaorm.field).has_many = "post"];
+}
+
+// Post entity with belongs_to relation
+message Post {
+  option (seaorm.message).table_name = "posts";
+
+  int64 id = 1 [(seaorm.field) = {
+    primary_key: true,
+    auto_increment: true
+  }];
+
+  string title = 2;
+  string content = 3 [(seaorm.field).column_type = "Text"];
+
+  // Foreign key to User
+  int64 user_id = 4 [(seaorm.field) = {
+    belongs_to: "user",
+    belongs_to_from: "user_id",
+    belongs_to_to: "id"
+  }];
+
+  google.protobuf.Timestamp published_at = 5 [(seaorm.field).nullable = true];
+}
+
+// Message without seaorm options (should be skipped)
+message SkippedMessage {
+  string field = 1;
+}
+
+// Message explicitly marked to skip
+message ExplicitlySkipped {
+  option (seaorm.message).skip = true;
+  string field = 1;
+}
