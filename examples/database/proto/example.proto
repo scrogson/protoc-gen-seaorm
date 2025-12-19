@@ -18,6 +18,7 @@ message User {
   string email = 2 [(seaorm.field).unique = true];
   string name = 3;
   google.protobuf.Timestamp created_at = 4;
+  google.protobuf.Timestamp updated_at = 5;
 }
 
 // Post entity with many-to-one relationship to user
@@ -34,4 +35,5 @@ message Post {
   string content = 3;
   int64 author_id = 4;
   google.protobuf.Timestamp created_at = 5;
+  google.protobuf.Timestamp updated_at = 6;
 }

@@ -84,8 +84,11 @@ message FieldOptions {
   // Explicit SeaORM column type (e.g., "Uuid", "Json", "Text")
   string column_type = 6;
 
-  // Default value expression
+  // Default value expression (e.g., "0", "false", "''")
   string default_value = 7;
+
+  // Default expression (e.g., "Expr::current_timestamp()")
+  string default_expr = 9;
 
   // Embed this field as JSON (for nested messages stored in JSONB columns)
   bool embed = 8;

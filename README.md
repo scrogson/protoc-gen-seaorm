@@ -143,7 +143,8 @@ impl ActiveModelBehavior for ActiveModel {}
 | `nullable` | bool | Mark as nullable |
 | `column_name` | string | Override column name |
 | `column_type` | string | Override SeaORM column type |
-| `default_value` | string | Default value expression |
+| `default_value` | string | Default literal value (e.g., `"0"`, `"false"`) |
+| `default_expr` | string | Default expression (e.g., `"Expr::current_timestamp()"`) |
 | `embed` | bool | Store as JSON (for nested messages) |
 
 ### Relation Definition

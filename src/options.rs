@@ -750,6 +750,12 @@ fn convert_to_field_options(value: &Value) -> Option<seaorm::FieldOptions> {
         }
     }
 
+    if let Some(cow) = msg.get_field_by_name("default_expr") {
+        if let Value::String(s) = cow.as_ref() {
+            result.default_expr = s.clone();
+        }
+    }
+
     if let Some(cow) = msg.get_field_by_name("embed") {
         if let Value::Bool(b) = cow.as_ref() {
             result.embed = *b;
@@ -1100,6 +1106,7 @@ fn apply_single_field_option(
         "column_name" => result.column_name = parse_string_option(opt),
         "column_type" => result.column_type = parse_string_option(opt),
         "default_value" => result.default_value = parse_string_option(opt),
+        "default_expr" => result.default_expr = parse_string_option(opt),
         "embed" => result.embed = parse_bool_option(opt),
         "has_one" => result.has_one = parse_string_option(opt),
         "has_many" => result.has_many = parse_string_option(opt),
@@ -1198,6 +1205,7 @@ fn parse_aggregate_into_field_options(result: &mut seaorm::FieldOptions, aggrega
             "column_name" => result.column_name = parse_quoted_string(value),
             "column_type" => result.column_type = parse_quoted_string(value),
             "default_value" => result.default_value = parse_quoted_string(value),
+            "default_expr" => result.default_expr = parse_quoted_string(value),
             "embed" => result.embed = value == "true",
             "has_one" => result.has_one = parse_quoted_string(value),
             "has_many" => result.has_many = parse_quoted_string(value),

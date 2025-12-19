@@ -17,10 +17,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .await?;
 
     // Create a user using the builder pattern
+    let now = chrono::Utc::now();
     let user = user::ActiveModel::builder()
         .set_email("alice@example.com")
         .set_name("Alice")
-        .set_created_at(chrono::Utc::now())
+        .set_created_at(now)
+        .set_updated_at(now)
         .insert(&db)
         .await?;
     println!("Created user: {} (id={})", user.name, user.id);
@@ -32,6 +34,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .set_content(format!("Content of post #{}", i))
             .set_author_id(user.id)
             .set_created_at(chrono::Utc::now())
+            .set_updated_at(chrono::Utc::now())
             .insert(&db)
             .await?;
         println!("Created post: {} (id={})", post.title, post.id);
