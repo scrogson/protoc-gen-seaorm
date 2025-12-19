@@ -91,25 +91,25 @@ message User {
   };
 
   // Primary key with auto-increment
-  int64 id = 1 [(seaorm.field) = {
+  int64 id = 1 [(seaorm.column) = {
     primary_key: true,
     auto_increment: true
   }];
 
   // UUID field with explicit column type
-  string uuid = 2 [(seaorm.field) = {
+  string uuid = 2 [(seaorm.column) = {
     column_type: "Uuid",
     unique: true
   }];
 
   // Unique email with column name override
-  string email = 3 [(seaorm.field) = {
+  string email = 3 [(seaorm.column) = {
     unique: true,
     column_name: "email_address"
   }];
 
   // Username with default value
-  string username = 4 [(seaorm.field) = {
+  string username = 4 [(seaorm.column) = {
     unique: true,
     default_value: "anonymous"
   }];
@@ -124,23 +124,23 @@ message User {
   UserStatus status = 7;
 
   // Embedded address as JSONB
-  Address address = 8 [(seaorm.field).embed = true];
+  Address address = 8 [(seaorm.column).embed = true];
 
   // Optional embedded social links
-  optional SocialLinks social_links = 9 [(seaorm.field).embed = true];
+  optional SocialLinks social_links = 9 [(seaorm.column).embed = true];
 
   // Embedded notification preferences with custom column name
-  NotificationPreferences preferences = 10 [(seaorm.field) = {
+  NotificationPreferences preferences = 10 [(seaorm.column) = {
     embed: true,
     column_name: "notification_prefs"
   }];
 
   // Login count with default
-  int32 login_count = 11 [(seaorm.field).default_value = "0"];
+  int32 login_count = 11 [(seaorm.column).default_value = "0"];
 
   // Boolean flags
   bool is_verified = 12;
-  bool is_admin = 13 [(seaorm.field).default_value = "false"];
+  bool is_admin = 13 [(seaorm.column).default_value = "false"];
 
   // Timestamps
   google.protobuf.Timestamp created_at = 14;
@@ -157,14 +157,14 @@ message UserProfile {
     ]
   };
 
-  int64 id = 1 [(seaorm.field) = {
+  int64 id = 1 [(seaorm.column) = {
     primary_key: true,
     auto_increment: true
   }];
 
-  int64 user_id = 2 [(seaorm.field).unique = true];
+  int64 user_id = 2 [(seaorm.column).unique = true];
 
-  optional string bio = 3 [(seaorm.field).column_type = "Text"];
+  optional string bio = 3 [(seaorm.column).column_type = "Text"];
 
   optional string avatar_url = 4;
 
@@ -186,18 +186,18 @@ message Post {
     ]
   };
 
-  int64 id = 1 [(seaorm.field) = {
+  int64 id = 1 [(seaorm.column) = {
     primary_key: true,
     auto_increment: true
   }];
 
-  string slug = 2 [(seaorm.field).unique = true];
+  string slug = 2 [(seaorm.column).unique = true];
 
   string title = 3;
 
-  string content = 4 [(seaorm.field).column_type = "Text"];
+  string content = 4 [(seaorm.column).column_type = "Text"];
 
-  optional string excerpt = 5 [(seaorm.field).column_type = "Text"];
+  optional string excerpt = 5 [(seaorm.column).column_type = "Text"];
 
   // Foreign key to User
   int64 author_id = 6;
@@ -205,9 +205,9 @@ message Post {
   // Post priority
   Priority priority = 7;
 
-  bool is_published = 8 [(seaorm.field).default_value = "false"];
+  bool is_published = 8 [(seaorm.column).default_value = "false"];
 
-  int32 view_count = 9 [(seaorm.field).default_value = "0"];
+  int32 view_count = 9 [(seaorm.column).default_value = "0"];
 
   google.protobuf.Timestamp created_at = 10;
   google.protobuf.Timestamp updated_at = 11;
@@ -226,7 +226,7 @@ message Comment {
     ]
   };
 
-  int64 id = 1 [(seaorm.field) = {
+  int64 id = 1 [(seaorm.column) = {
     primary_key: true,
     auto_increment: true
   }];
@@ -237,9 +237,9 @@ message Comment {
   // Self-referential for nested comments
   optional int64 parent_id = 4;
 
-  string content = 5 [(seaorm.field).column_type = "Text"];
+  string content = 5 [(seaorm.column).column_type = "Text"];
 
-  bool is_edited = 6 [(seaorm.field).default_value = "false"];
+  bool is_edited = 6 [(seaorm.column).default_value = "false"];
 
   google.protobuf.Timestamp created_at = 7;
   google.protobuf.Timestamp updated_at = 8;
@@ -254,18 +254,18 @@ message Tag {
     ]
   };
 
-  int64 id = 1 [(seaorm.field) = {
+  int64 id = 1 [(seaorm.column) = {
     primary_key: true,
     auto_increment: true
   }];
 
-  string name = 2 [(seaorm.field).unique = true];
+  string name = 2 [(seaorm.column).unique = true];
 
-  string slug = 3 [(seaorm.field).unique = true];
+  string slug = 3 [(seaorm.column).unique = true];
 
   optional string description = 4;
 
-  int32 post_count = 5 [(seaorm.field).default_value = "0"];
+  int32 post_count = 5 [(seaorm.column).default_value = "0"];
 }
 
 // Role entity for RBAC
@@ -278,12 +278,12 @@ message Role {
     ]
   };
 
-  int64 id = 1 [(seaorm.field) = {
+  int64 id = 1 [(seaorm.column) = {
     primary_key: true,
     auto_increment: true
   }];
 
-  string name = 2 [(seaorm.field).unique = true];
+  string name = 2 [(seaorm.column).unique = true];
 
   optional string description = 3;
 
@@ -299,12 +299,12 @@ message Permission {
     ]
   };
 
-  int64 id = 1 [(seaorm.field) = {
+  int64 id = 1 [(seaorm.column) = {
     primary_key: true,
     auto_increment: true
   }];
 
-  string name = 2 [(seaorm.field).unique = true];
+  string name = 2 [(seaorm.column).unique = true];
 
   string resource = 3;
 
@@ -325,8 +325,8 @@ message PostTag {
     ]
   };
 
-  int64 post_id = 1 [(seaorm.field).primary_key = true];
-  int64 tag_id = 2 [(seaorm.field).primary_key = true];
+  int64 post_id = 1 [(seaorm.column).primary_key = true];
+  int64 tag_id = 2 [(seaorm.column).primary_key = true];
 
   google.protobuf.Timestamp created_at = 3;
 }
@@ -341,8 +341,8 @@ message UserRole {
     ]
   };
 
-  int64 user_id = 1 [(seaorm.field).primary_key = true];
-  int64 role_id = 2 [(seaorm.field).primary_key = true];
+  int64 user_id = 1 [(seaorm.column).primary_key = true];
+  int64 role_id = 2 [(seaorm.column).primary_key = true];
 
   google.protobuf.Timestamp granted_at = 3;
   optional int64 granted_by = 4;
@@ -358,8 +358,8 @@ message RolePermission {
     ]
   };
 
-  int64 role_id = 1 [(seaorm.field).primary_key = true];
-  int64 permission_id = 2 [(seaorm.field).primary_key = true];
+  int64 role_id = 1 [(seaorm.column).primary_key = true];
+  int64 permission_id = 2 [(seaorm.column).primary_key = true];
 }
 
 // =============================================================================
@@ -371,7 +371,7 @@ message RolePermission {
 message Payment {
   option (seaorm.model).table_name = "payments";
 
-  int64 id = 1 [(seaorm.field) = {
+  int64 id = 1 [(seaorm.column) = {
     primary_key: true,
     auto_increment: true
   }];
@@ -381,7 +381,7 @@ message Payment {
   // Amount in cents
   int64 amount = 3;
 
-  string currency = 4 [(seaorm.field).default_value = "USD"];
+  string currency = 4 [(seaorm.column).default_value = "USD"];
 
   // Payment method - flattened into separate nullable columns
   oneof payment_method {
@@ -401,7 +401,7 @@ message Payment {
 message AuditEvent {
   option (seaorm.model).table_name = "audit_events";
 
-  int64 id = 1 [(seaorm.field) = {
+  int64 id = 1 [(seaorm.column) = {
     primary_key: true,
     auto_increment: true
   }];
@@ -447,7 +447,7 @@ message ProfileUpdateEvent {
 message Notification {
   option (seaorm.model).table_name = "notifications";
 
-  int64 id = 1 [(seaorm.field) = {
+  int64 id = 1 [(seaorm.column) = {
     primary_key: true,
     auto_increment: true
   }];
@@ -456,7 +456,7 @@ message Notification {
 
   string title = 3;
 
-  bool is_read = 4 [(seaorm.field).default_value = "false"];
+  bool is_read = 4 [(seaorm.column).default_value = "false"];
 
   // Notification payload with tagged union strategy
   oneof payload {
@@ -501,7 +501,7 @@ message TemporaryData {
 message DataTypesExample {
   option (seaorm.model).table_name = "data_types_examples";
 
-  int64 id = 1 [(seaorm.field) = {
+  int64 id = 1 [(seaorm.column) = {
     primary_key: true,
     auto_increment: true
   }];
@@ -530,8 +530,8 @@ message DataTypesExample {
   bytes bytes_field = 16;
 
   // Explicit column types
-  string uuid_field = 17 [(seaorm.field).column_type = "Uuid"];
-  string decimal_field = 18 [(seaorm.field).column_type = "Decimal"];
-  string text_field = 19 [(seaorm.field).column_type = "Text"];
-  bytes binary_field = 20 [(seaorm.field).column_type = "Binary"];
+  string uuid_field = 17 [(seaorm.column).column_type = "Uuid"];
+  string decimal_field = 18 [(seaorm.column).column_type = "Decimal"];
+  string text_field = 19 [(seaorm.column).column_type = "Text"];
+  bytes binary_field = 20 [(seaorm.column).column_type = "Binary"];
 }

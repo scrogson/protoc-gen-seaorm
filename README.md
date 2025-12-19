@@ -71,8 +71,8 @@ message User {
     ]
   };
 
-  int64 id = 1 [(seaorm.field) = { primary_key: true, auto_increment: true }];
-  string email = 2 [(seaorm.field).unique = true];
+  int64 id = 1 [(seaorm.column) = { primary_key: true, auto_increment: true }];
+  string email = 2 [(seaorm.column).unique = true];
   string name = 3;
   google.protobuf.Timestamp created_at = 4;
 }
@@ -85,7 +85,7 @@ message Post {
     ]
   };
 
-  int64 id = 1 [(seaorm.field) = { primary_key: true, auto_increment: true }];
+  int64 id = 1 [(seaorm.column) = { primary_key: true, auto_increment: true }];
   string title = 2;
   string content = 3;
   int64 author_id = 4;
@@ -133,7 +133,7 @@ impl ActiveModelBehavior for ActiveModel {}
 | `relations` | repeated RelationDef | Define entity relations |
 | `indexes` | repeated string | Index definitions |
 
-### Field Options (`seaorm.field`)
+### Column Options (`seaorm.column`)
 
 | Option | Type | Description |
 |--------|------|-------------|

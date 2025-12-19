@@ -1,6 +1,6 @@
 //! Options parsing for SeaORM protobuf extensions
 //!
-//! This module handles parsing of `(seaorm.model)`, `(seaorm.field)`,
+//! This module handles parsing of `(seaorm.model)`, `(seaorm.column)`,
 //! `(seaorm.enum_opt)`, `(seaorm.enum_value)`, and `(seaorm.oneof)` options
 //! from protobuf descriptors.
 //!
@@ -34,8 +34,8 @@ static FILE_DESCRIPTOR_SET_BYTES: &[u8] =
 /// Extension name for model options (used for uninterpreted_option fallback)
 const MODEL_EXTENSION_NAME: &str = "seaorm.model";
 
-/// Extension name for field options
-const FIELD_EXTENSION_NAME: &str = "seaorm.field";
+/// Extension name for column options
+const COLUMN_EXTENSION_NAME: &str = "seaorm.column";
 
 /// Extension name for enum options
 const ENUM_EXTENSION_NAME: &str = "seaorm.enum_opt";
@@ -172,7 +172,7 @@ fn extract_message_options(
         }
     }
 
-    // Extract field-level options (seaorm.field)
+    // Extract field-level options (seaorm.column)
     if let Some(cow) = msg.get_field_by_name("field") {
         if let Value::List(fields) = cow.as_ref() {
             for field_value in fields.iter() {
@@ -191,7 +191,7 @@ fn extract_message_options(
                     if let Some(opts_cow) = field_msg.get_field_by_name("options") {
                         if let Some(opts_msg) = opts_cow.as_ref().as_message() {
                             if let Some(ext_field) =
-                                DESCRIPTOR_POOL.get_extension_by_name("seaorm.field")
+                                DESCRIPTOR_POOL.get_extension_by_name("seaorm.column")
                             {
                                 if opts_msg.has_extension(&ext_field) {
                                     let ext_value = opts_msg.get_extension(&ext_field);
@@ -525,7 +525,7 @@ fn parse_field_options_from_extension(
 
     let dynamic_msg = DynamicMessage::decode(field_options_desc, &buf[..]).ok()?;
 
-    let ext_field = DESCRIPTOR_POOL.get_extension_by_name("seaorm.field")?;
+    let ext_field = DESCRIPTOR_POOL.get_extension_by_name("seaorm.column")?;
 
     if !dynamic_msg.has_extension(&ext_field) {
         return None;
@@ -912,7 +912,7 @@ fn parse_field_options_from_uninterpreted(
     let mut found = false;
 
     for opt in uninterpreted {
-        if is_extension_option(opt, FIELD_EXTENSION_NAME) {
+        if is_extension_option(opt, COLUMN_EXTENSION_NAME) {
             found = true;
             apply_field_option(&mut result, opt);
         }
@@ -1045,7 +1045,7 @@ fn apply_field_option(result: &mut seaorm::FieldOptions, opt: &UninterpretedOpti
         // Parse aggregate value like: primary_key: true, auto_increment: true
         parse_aggregate_into_field_options(result, aggregate);
     } else if let Some(field_name) = get_subfield_name(opt) {
-        // Individual field setting like (seaorm.field).primary_key = true
+        // Individual field setting like (seaorm.column).primary_key = true
         apply_single_field_option(result, field_name, opt);
     }
 }

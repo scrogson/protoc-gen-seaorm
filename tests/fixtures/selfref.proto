@@ -15,7 +15,7 @@ message TreeNode {
     ]
   };
 
-  int64 id = 1 [(seaorm.field) = {
+  int64 id = 1 [(seaorm.column) = {
     primary_key: true,
     auto_increment: true
   }];

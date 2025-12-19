@@ -11,14 +11,14 @@ message SimpleUser {
     table_name: "simple_users"
   };
 
-  int64 id = 1 [(seaorm.field) = {
+  int64 id = 1 [(seaorm.column) = {
     primary_key: true,
     auto_increment: true
   }];
 
-  string email = 2 [(seaorm.field).unique = true];
+  string email = 2 [(seaorm.column).unique = true];
   string name = 3;
-  bool is_active = 4 [(seaorm.field).default_value = "true"];
+  bool is_active = 4 [(seaorm.column).default_value = "true"];
 }
 
 // Simple post with single belongs_to (no reverse has_many)
@@ -30,7 +30,7 @@ message SimplePost {
     ]
   };
 
-  int64 id = 1 [(seaorm.field) = {
+  int64 id = 1 [(seaorm.column) = {
     primary_key: true,
     auto_increment: true
   }];

@@ -14,7 +14,7 @@ message Article {
     ]
   };
 
-  int64 id = 1 [(seaorm.field) = {
+  int64 id = 1 [(seaorm.column) = {
     primary_key: true,
     auto_increment: true
   }];
@@ -32,12 +32,12 @@ message Category {
     ]
   };
 
-  int64 id = 1 [(seaorm.field) = {
+  int64 id = 1 [(seaorm.column) = {
     primary_key: true,
     auto_increment: true
   }];
 
-  string name = 2 [(seaorm.field).unique = true];
+  string name = 2 [(seaorm.column).unique = true];
 }
 
 // Junction table for Article-Category many-to-many
@@ -50,6 +50,6 @@ message ArticleCategory {
     ]
   };
 
-  int64 article_id = 1 [(seaorm.field).primary_key = true];
-  int64 category_id = 2 [(seaorm.field).primary_key = true];
+  int64 article_id = 1 [(seaorm.column).primary_key = true];
+  int64 category_id = 2 [(seaorm.column).primary_key = true];
 }

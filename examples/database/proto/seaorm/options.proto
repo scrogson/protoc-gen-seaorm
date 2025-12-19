@@ -159,9 +159,9 @@ extend google.protobuf.MessageOptions {
   MessageOptions model = 50000;
 }
 
-// Extend google.protobuf.FieldOptions to add seaorm.field
+// Extend google.protobuf.FieldOptions to add seaorm.column
 extend google.protobuf.FieldOptions {
-  FieldOptions field = 50001;
+  FieldOptions column = 50001;
 }
 
 // Extend google.protobuf.EnumOptions to add seaorm.enum

@@ -24,7 +24,7 @@ fn create_test_request() -> CodeGeneratorRequest {
     // Create field options for primary key
     let pk_option = UninterpretedOption {
         name: vec![NamePart {
-            name_part: "seaorm.field".to_string(),
+            name_part: "seaorm.column".to_string(),
             is_extension: true,
         }],
         aggregate_value: Some("primary_key: true, auto_increment: true".to_string()),
@@ -34,7 +34,7 @@ fn create_test_request() -> CodeGeneratorRequest {
     // Create field options for unique
     let unique_option = UninterpretedOption {
         name: vec![NamePart {
-            name_part: "seaorm.field".to_string(),
+            name_part: "seaorm.column".to_string(),
             is_extension: true,
         }],
         aggregate_value: Some("unique: true".to_string()),
@@ -445,7 +445,7 @@ fn test_generate_entity_with_oneof_flatten() {
     // Create field options for primary key
     let pk_option = UninterpretedOption {
         name: vec![NamePart {
-            name_part: "seaorm.field".to_string(),
+            name_part: "seaorm.column".to_string(),
             is_extension: true,
         }],
         aggregate_value: Some("primary_key: true, auto_increment: true".to_string()),
@@ -570,7 +570,7 @@ fn test_generate_entity_with_oneof_json() {
 
     let pk_option = UninterpretedOption {
         name: vec![NamePart {
-            name_part: "seaorm.field".to_string(),
+            name_part: "seaorm.column".to_string(),
             is_extension: true,
         }],
         aggregate_value: Some("primary_key: true".to_string()),
@@ -679,7 +679,7 @@ fn test_generate_entity_with_message_level_relations() {
 
     let pk_option = UninterpretedOption {
         name: vec![NamePart {
-            name_part: "seaorm.field".to_string(),
+            name_part: "seaorm.column".to_string(),
             is_extension: true,
         }],
         aggregate_value: Some("primary_key: true".to_string()),
@@ -768,7 +768,7 @@ fn test_generate_entity_with_belongs_to_relation() {
 
     let pk_option = UninterpretedOption {
         name: vec![NamePart {
-            name_part: "seaorm.field".to_string(),
+            name_part: "seaorm.column".to_string(),
             is_extension: true,
         }],
         aggregate_value: Some("primary_key: true".to_string()),
@@ -862,7 +862,7 @@ fn test_generate_entity_with_many_to_many_relation() {
 
     let pk_option = UninterpretedOption {
         name: vec![NamePart {
-            name_part: "seaorm.field".to_string(),
+            name_part: "seaorm.column".to_string(),
             is_extension: true,
         }],
         aggregate_value: Some("primary_key: true".to_string()),
@@ -945,7 +945,7 @@ fn test_generate_entity_with_embed_field() {
 
     let pk_option = UninterpretedOption {
         name: vec![NamePart {
-            name_part: "seaorm.field".to_string(),
+            name_part: "seaorm.column".to_string(),
             is_extension: true,
         }],
         aggregate_value: Some("primary_key: true".to_string()),
@@ -954,7 +954,7 @@ fn test_generate_entity_with_embed_field() {
 
     let embed_option = UninterpretedOption {
         name: vec![NamePart {
-            name_part: "seaorm.field".to_string(),
+            name_part: "seaorm.column".to_string(),
             is_extension: true,
         }],
         aggregate_value: Some("embed: true".to_string()),
@@ -963,7 +963,7 @@ fn test_generate_entity_with_embed_field() {
 
     let embed_nullable_option = UninterpretedOption {
         name: vec![NamePart {
-            name_part: "seaorm.field".to_string(),
+            name_part: "seaorm.column".to_string(),
             is_extension: true,
         }],
         aggregate_value: Some("embed: true".to_string()),
