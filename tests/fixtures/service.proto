@@ -66,12 +66,12 @@ service PostService {
   rpc GetPost(GetUserRequest) returns (User);
 
   // This method should be skipped
-  rpc InternalMethod(GetUserRequest) returns (User) [
-    (seaorm.rpc).skip = true
-  ];
+  rpc InternalMethod(GetUserRequest) returns (User) {
+    option (seaorm.rpc).skip = true;
+  }
 
   // This method has a custom name
-  rpc FetchAllPosts(ListUsersRequest) returns (ListUsersResponse) [
-    (seaorm.rpc).method_name = "list_posts"
-  ];
+  rpc FetchAllPosts(ListUsersRequest) returns (ListUsersResponse) {
+    option (seaorm.rpc).method_name = "list_posts";
+  }
 }
