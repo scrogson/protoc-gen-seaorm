@@ -1,6 +1,6 @@
 # Generated SeaORM entities (regenerate with: buf generate)
-src/entity/
-# But keep prelude.rs (hand-written)
+# Ignore all .rs files in entity/ except prelude.rs (hand-written)
+src/entity/**/*.rs
 !src/entity/**/prelude.rs
 
 # Cargo build artifacts
