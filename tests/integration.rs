@@ -503,7 +503,6 @@ fn test_generate_entity_with_oneof_flatten() {
             name: Some("payment_method".to_string()),
             options: Some(OneofOptions {
                 uninterpreted_option: vec![oneof_option],
-                ..Default::default()
             }),
         }],
         options: Some(MessageOptions {
