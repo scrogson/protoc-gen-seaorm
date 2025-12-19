@@ -1,7 +1,7 @@
 //! Code generation orchestration
 //!
 //! This module coordinates the overall code generation process,
-//! iterating through proto files and generating SeaORM entities and enums.
+//! iterating through proto files and generating SeaORM entities, enums, and storage traits.
 
 use crate::GeneratorError;
 use prost::Message;
@@ -32,6 +32,13 @@ pub fn generate(request: CodeGeneratorRequest) -> Result<CodeGeneratorResponse, 
         // Process each enum in the file
         for enum_desc in &file_descriptor.enum_type {
             if let Some(generated) = crate::codegen::generate_enum(file_descriptor, enum_desc)? {
+                files.push(generated);
+            }
+        }
+
+        // Process each service in the file
+        for service in &file_descriptor.service {
+            if let Some(generated) = crate::codegen::generate_service(file_descriptor, service)? {
                 files.push(generated);
             }
         }

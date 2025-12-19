@@ -1,8 +1,8 @@
 //! Options parsing for SeaORM protobuf extensions
 //!
 //! This module handles parsing of `(seaorm.model)`, `(seaorm.column)`,
-//! `(seaorm.enum_opt)`, `(seaorm.enum_value)`, and `(seaorm.oneof)` options
-//! from protobuf descriptors.
+//! `(seaorm.enum_opt)`, `(seaorm.enum_value)`, `(seaorm.oneof)`,
+//! `(seaorm.service)`, and `(seaorm.rpc)` options from protobuf descriptors.
 //!
 //! Custom protobuf extensions are stored as extension fields in the options
 //! messages. We use prost-reflect to decode these extensions from the raw
@@ -13,7 +13,7 @@ use prost::Message;
 use prost_reflect::{DescriptorPool, DynamicMessage, Value};
 use prost_types::{
     DescriptorProto, EnumDescriptorProto, EnumValueDescriptorProto, FieldDescriptorProto,
-    OneofDescriptorProto, UninterpretedOption,
+    OneofDescriptorProto, ServiceDescriptorProto, UninterpretedOption,
 };
 use std::collections::HashMap;
 use std::sync::RwLock;
@@ -46,6 +46,12 @@ const ENUM_VALUE_EXTENSION_NAME: &str = "seaorm.enum_value";
 /// Extension name for oneof options
 const ONEOF_EXTENSION_NAME: &str = "seaorm.oneof";
 
+/// Extension name for service options
+const SERVICE_EXTENSION_NAME: &str = "seaorm.service";
+
+/// Extension name for rpc method options
+const RPC_EXTENSION_NAME: &str = "seaorm.rpc";
+
 /// Lazily initialized descriptor pool with our extension definitions
 static DESCRIPTOR_POOL: Lazy<DescriptorPool> = Lazy::new(|| {
     DescriptorPool::decode(FILE_DESCRIPTOR_SET_BYTES).expect("Failed to decode file descriptor set")
@@ -68,6 +74,10 @@ struct OptionsCache {
     enum_value_options: HashMap<(String, String, i32), seaorm::EnumValueOptions>,
     /// Oneof options: (file_name, message_name, oneof_index) -> OneofOptions
     oneof_options: HashMap<(String, String, i32), seaorm::OneofOptions>,
+    /// Service options: (file_name, service_name) -> ServiceOptions
+    service_options: HashMap<(String, String), seaorm::ServiceOptions>,
+    /// RPC method options: (file_name, service_name, method_name) -> RpcMethodOptions
+    rpc_method_options: HashMap<(String, String, String), seaorm::RpcMethodOptions>,
 }
 
 /// Pre-process raw CodeGeneratorRequest bytes to extract options using prost-reflect
@@ -129,6 +139,17 @@ fn extract_options_from_file(
             for enum_value in enums.iter() {
                 if let Some(enum_msg) = enum_value.as_message() {
                     extract_enum_options(cache, &file_name, enum_msg)?;
+                }
+            }
+        }
+    }
+
+    // Extract service options
+    if let Some(cow) = file.get_field_by_name("service") {
+        if let Value::List(services) = cow.as_ref() {
+            for service_value in services.iter() {
+                if let Some(service_msg) = service_value.as_message() {
+                    extract_service_options(cache, &file_name, service_msg)?;
                 }
             }
         }
@@ -356,6 +377,74 @@ fn extract_enum_options_nested(
     Ok(())
 }
 
+/// Extract options from a ServiceDescriptorProto DynamicMessage
+fn extract_service_options(
+    cache: &mut OptionsCache,
+    file_name: &str,
+    service: &DynamicMessage,
+) -> Result<(), String> {
+    let service_name = service
+        .get_field_by_name("name")
+        .and_then(|v| v.as_ref().as_str().map(|s| s.to_string()))
+        .unwrap_or_default();
+
+    // Extract service-level options (seaorm.service)
+    if let Some(cow) = service.get_field_by_name("options") {
+        if let Some(opts_msg) = cow.as_ref().as_message() {
+            if let Some(ext_field) = DESCRIPTOR_POOL.get_extension_by_name(SERVICE_EXTENSION_NAME) {
+                if opts_msg.has_extension(&ext_field) {
+                    let ext_value = opts_msg.get_extension(&ext_field);
+                    if let Some(service_opts) = convert_to_service_options(&ext_value) {
+                        cache
+                            .service_options
+                            .insert((file_name.to_string(), service_name.clone()), service_opts);
+                    }
+                }
+            }
+        }
+    }
+
+    // Extract method-level options (seaorm.rpc)
+    if let Some(cow) = service.get_field_by_name("method") {
+        if let Value::List(methods) = cow.as_ref() {
+            for method_value in methods.iter() {
+                if let Some(method_msg) = method_value.as_message() {
+                    let method_name = method_msg
+                        .get_field_by_name("name")
+                        .and_then(|v| v.as_ref().as_str().map(|s| s.to_string()))
+                        .unwrap_or_default();
+
+                    if let Some(opts_cow) = method_msg.get_field_by_name("options") {
+                        if let Some(opts_msg) = opts_cow.as_ref().as_message() {
+                            if let Some(ext_field) =
+                                DESCRIPTOR_POOL.get_extension_by_name(RPC_EXTENSION_NAME)
+                            {
+                                if opts_msg.has_extension(&ext_field) {
+                                    let ext_value = opts_msg.get_extension(&ext_field);
+                                    if let Some(method_opts) =
+                                        convert_to_rpc_method_options(&ext_value)
+                                    {
+                                        cache.rpc_method_options.insert(
+                                            (
+                                                file_name.to_string(),
+                                                service_name.clone(),
+                                                method_name,
+                                            ),
+                                            method_opts,
+                                        );
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    Ok(())
+}
+
 /// Look up cached message options for a given file and message name
 pub fn get_cached_message_options(
     file_name: &str,
@@ -403,6 +492,45 @@ pub fn get_cached_oneof_options(
         cache
             .oneof_options
             .get(&(file_name.to_string(), msg_name.to_string(), oneof_index))
+            .cloned()
+    })
+}
+
+/// Look up cached service options for a given file and service name
+pub fn get_cached_service_options(
+    file_name: &str,
+    service_name: &str,
+) -> Option<seaorm::ServiceOptions> {
+    OPTIONS_CACHE.read().ok().and_then(|cache| {
+        cache
+            .service_options
+            .get(&(file_name.to_string(), service_name.to_string()))
+            .cloned()
+    })
+}
+
+/// Parse SeaORM service options from a ServiceDescriptorProto
+pub fn parse_service_options(service: &ServiceDescriptorProto) -> Option<seaorm::ServiceOptions> {
+    let opts = service.options.as_ref()?;
+
+    // Fallback to uninterpreted_option (main path for unit tests)
+    parse_service_options_from_uninterpreted(&opts.uninterpreted_option)
+}
+
+/// Look up cached RPC method options for a given file, service name, and method name
+pub fn get_cached_rpc_method_options(
+    file_name: &str,
+    service_name: &str,
+    method_name: &str,
+) -> Option<seaorm::RpcMethodOptions> {
+    OPTIONS_CACHE.read().ok().and_then(|cache| {
+        cache
+            .rpc_method_options
+            .get(&(
+                file_name.to_string(),
+                service_name.to_string(),
+                method_name.to_string(),
+            ))
             .cloned()
     })
 }
@@ -879,6 +1007,52 @@ fn convert_to_oneof_options(value: &Value) -> Option<seaorm::OneofOptions> {
     Some(result)
 }
 
+/// Convert a prost-reflect Value to our ServiceOptions type
+fn convert_to_service_options(value: &Value) -> Option<seaorm::ServiceOptions> {
+    let msg = value.as_message()?;
+    let mut result = seaorm::ServiceOptions::default();
+
+    if let Some(cow) = msg.get_field_by_name("generate_storage") {
+        if let Value::Bool(b) = cow.as_ref() {
+            result.generate_storage = *b;
+        }
+    }
+
+    if let Some(cow) = msg.get_field_by_name("trait_name") {
+        if let Value::String(s) = cow.as_ref() {
+            result.trait_name = s.clone();
+        }
+    }
+
+    if let Some(cow) = msg.get_field_by_name("skip") {
+        if let Value::Bool(b) = cow.as_ref() {
+            result.skip = *b;
+        }
+    }
+
+    Some(result)
+}
+
+/// Convert a prost-reflect Value to our RpcMethodOptions type
+fn convert_to_rpc_method_options(value: &Value) -> Option<seaorm::RpcMethodOptions> {
+    let msg = value.as_message()?;
+    let mut result = seaorm::RpcMethodOptions::default();
+
+    if let Some(cow) = msg.get_field_by_name("skip") {
+        if let Value::Bool(b) = cow.as_ref() {
+            result.skip = *b;
+        }
+    }
+
+    if let Some(cow) = msg.get_field_by_name("method_name") {
+        if let Value::String(s) = cow.as_ref() {
+            result.method_name = s.clone();
+        }
+    }
+
+    Some(result)
+}
+
 // =============================================================================
 // Fallback: Uninterpreted option parsing (for older protoc versions)
 // =============================================================================
@@ -988,6 +1162,27 @@ fn parse_oneof_options_from_uninterpreted(
     }
 }
 
+/// Parse ServiceOptions from uninterpreted options
+fn parse_service_options_from_uninterpreted(
+    uninterpreted: &[UninterpretedOption],
+) -> Option<seaorm::ServiceOptions> {
+    let mut result = seaorm::ServiceOptions::default();
+    let mut found = false;
+
+    for opt in uninterpreted {
+        if is_extension_option(opt, SERVICE_EXTENSION_NAME) {
+            found = true;
+            apply_service_option(&mut result, opt);
+        }
+    }
+
+    if found {
+        Some(result)
+    } else {
+        None
+    }
+}
+
 /// Check if an uninterpreted option matches our extension name
 fn is_extension_option(opt: &UninterpretedOption, extension_name: &str) -> bool {
     // The name parts form a path like: (seaorm.model).table_name
@@ -1087,6 +1282,20 @@ fn apply_oneof_option(result: &mut seaorm::OneofOptions, opt: &UninterpretedOpti
             "strategy" => result.strategy = parse_string_option(opt),
             "column_prefix" => result.column_prefix = parse_string_option(opt),
             "discriminator_column" => result.discriminator_column = parse_string_option(opt),
+            _ => {}
+        }
+    }
+}
+
+/// Apply a single uninterpreted option to ServiceOptions
+fn apply_service_option(result: &mut seaorm::ServiceOptions, opt: &UninterpretedOption) {
+    if let Some(aggregate) = opt.aggregate_value.as_ref() {
+        parse_aggregate_into_service_options(result, aggregate);
+    } else if let Some(field_name) = get_subfield_name(opt) {
+        match field_name {
+            "generate_storage" => result.generate_storage = parse_bool_option(opt),
+            "trait_name" => result.trait_name = parse_string_option(opt),
+            "skip" => result.skip = parse_bool_option(opt),
             _ => {}
         }
     }
@@ -1268,6 +1477,25 @@ fn parse_aggregate_into_oneof_options(result: &mut seaorm::OneofOptions, aggrega
             "strategy" => result.strategy = parse_quoted_string(value),
             "column_prefix" => result.column_prefix = parse_quoted_string(value),
             "discriminator_column" => result.discriminator_column = parse_quoted_string(value),
+            _ => {}
+        }
+    }
+}
+
+/// Parse an aggregate value (text format) into ServiceOptions
+///
+/// Aggregate values look like: `generate_storage: true, trait_name: "MyStorage"`
+fn parse_aggregate_into_service_options(result: &mut seaorm::ServiceOptions, aggregate: &str) {
+    for part in split_aggregate_parts(aggregate) {
+        let (key, value) = match part.split_once(':') {
+            Some((k, v)) => (k.trim(), v.trim()),
+            None => continue,
+        };
+
+        match key {
+            "generate_storage" => result.generate_storage = value == "true",
+            "trait_name" => result.trait_name = parse_quoted_string(value),
+            "skip" => result.skip = value == "true",
             _ => {}
         }
     }

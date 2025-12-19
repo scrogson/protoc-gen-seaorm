@@ -1,0 +1,77 @@
+// Service test fixture for storage trait generation
+syntax = "proto3";
+
+package test.service;
+
+import "seaorm/options.proto";
+
+// Request/Response messages for service methods
+message GetUserRequest {
+  int64 id = 1;
+}
+
+message CreateUserRequest {
+  string email = 1;
+  string name = 2;
+}
+
+message ListUsersRequest {
+  int32 page = 1;
+  int32 page_size = 2;
+}
+
+message ListUsersResponse {
+  repeated User users = 1;
+  int32 total = 2;
+}
+
+message User {
+  int64 id = 1;
+  string email = 2;
+  string name = 3;
+}
+
+// Service with storage trait generation enabled
+service UserService {
+  option (seaorm.service) = {
+    generate_storage: true
+  };
+
+  rpc GetUser(GetUserRequest) returns (User);
+  rpc CreateUser(CreateUserRequest) returns (User);
+  rpc ListUsers(ListUsersRequest) returns (ListUsersResponse);
+}
+
+// Service with custom trait name
+service AccountService {
+  option (seaorm.service) = {
+    generate_storage: true
+    trait_name: "AccountStore"
+  };
+
+  rpc GetAccount(GetUserRequest) returns (User);
+}
+
+// Service without storage generation (should be skipped)
+service InternalService {
+  rpc Ping(GetUserRequest) returns (User);
+}
+
+// Service with method-level options
+service PostService {
+  option (seaorm.service) = {
+    generate_storage: true
+  };
+
+  rpc GetPost(GetUserRequest) returns (User);
+
+  // This method should be skipped
+  rpc InternalMethod(GetUserRequest) returns (User) [
+    (seaorm.rpc).skip = true
+  ];
+
+  // This method has a custom name
+  rpc FetchAllPosts(ListUsersRequest) returns (ListUsersResponse) [
+    (seaorm.rpc).method_name = "list_posts"
+  ];
+}

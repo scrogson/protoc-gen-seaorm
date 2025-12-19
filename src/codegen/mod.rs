@@ -1,17 +1,20 @@
-//! Code generation modules for SeaORM entities
+//! Code generation modules for SeaORM entities and storage traits
 //!
 //! This module contains the code generation logic for creating
-//! SeaORM 2.0 entity definitions from Protocol Buffer messages.
+//! SeaORM 2.0 entity definitions and storage traits from Protocol Buffer messages.
 
 pub mod column;
 pub mod entity;
 pub mod enum_gen;
 pub mod oneof;
 pub mod relation;
+pub mod service;
 
 use crate::GeneratorError;
 use prost_types::compiler::code_generator_response::File;
-use prost_types::{DescriptorProto, EnumDescriptorProto, FileDescriptorProto};
+use prost_types::{
+    DescriptorProto, EnumDescriptorProto, FileDescriptorProto, ServiceDescriptorProto,
+};
 
 /// Generate a SeaORM entity from a protobuf message
 ///
@@ -31,4 +34,14 @@ pub fn generate_enum(
     enum_desc: &EnumDescriptorProto,
 ) -> Result<Option<File>, GeneratorError> {
     enum_gen::generate(file, enum_desc)
+}
+
+/// Generate a Storage trait from a protobuf service definition
+///
+/// Returns None if the service should be skipped (no seaorm options or generate_storage is false)
+pub fn generate_service(
+    file: &FileDescriptorProto,
+    service: &ServiceDescriptorProto,
+) -> Result<Option<File>, GeneratorError> {
+    service::generate(file, service)
 }

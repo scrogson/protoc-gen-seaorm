@@ -6,7 +6,8 @@ use prost_types::uninterpreted_option::NamePart;
 use prost_types::{
     compiler::CodeGeneratorRequest, field_descriptor_proto::Type, DescriptorProto,
     EnumDescriptorProto, EnumOptions, EnumValueDescriptorProto, FieldDescriptorProto,
-    FileDescriptorProto, MessageOptions, OneofDescriptorProto, OneofOptions, UninterpretedOption,
+    FileDescriptorProto, MessageOptions, MethodDescriptorProto, OneofDescriptorProto, OneofOptions,
+    ServiceDescriptorProto, ServiceOptions, UninterpretedOption,
 };
 
 /// Create a test CodeGeneratorRequest with a simple User message
@@ -1053,5 +1054,235 @@ fn test_generate_entity_with_embed_field() {
     assert!(
         content.contains("pub extra: Option<Metadata>"),
         "should have extra as Option<Metadata>"
+    );
+}
+
+// =============================================================================
+// Service / Storage Trait Tests
+// =============================================================================
+
+/// Create a test CodeGeneratorRequest with a service
+fn create_service_test_request() -> CodeGeneratorRequest {
+    // Create the seaorm.service option
+    let service_option = UninterpretedOption {
+        name: vec![NamePart {
+            name_part: "seaorm.service".to_string(),
+            is_extension: true,
+        }],
+        aggregate_value: Some("generate_storage: true".to_string()),
+        ..Default::default()
+    };
+
+    // Create the service
+    let user_service = ServiceDescriptorProto {
+        name: Some("UserService".to_string()),
+        method: vec![
+            MethodDescriptorProto {
+                name: Some("GetUser".to_string()),
+                input_type: Some(".test.GetUserRequest".to_string()),
+                output_type: Some(".test.User".to_string()),
+                ..Default::default()
+            },
+            MethodDescriptorProto {
+                name: Some("CreateUser".to_string()),
+                input_type: Some(".test.CreateUserRequest".to_string()),
+                output_type: Some(".test.User".to_string()),
+                ..Default::default()
+            },
+            MethodDescriptorProto {
+                name: Some("ListUsers".to_string()),
+                input_type: Some(".test.ListUsersRequest".to_string()),
+                output_type: Some(".test.ListUsersResponse".to_string()),
+                ..Default::default()
+            },
+        ],
+        options: Some(ServiceOptions {
+            uninterpreted_option: vec![service_option],
+            ..Default::default()
+        }),
+    };
+
+    // Create the file descriptor
+    let file_descriptor = FileDescriptorProto {
+        name: Some("test/user_service.proto".to_string()),
+        package: Some("test".to_string()),
+        service: vec![user_service],
+        syntax: Some("proto3".to_string()),
+        ..Default::default()
+    };
+
+    CodeGeneratorRequest {
+        file_to_generate: vec!["test/user_service.proto".to_string()],
+        proto_file: vec![file_descriptor],
+        ..Default::default()
+    }
+}
+
+#[test]
+fn test_generate_storage_trait() {
+    let request = create_service_test_request();
+    let response = protoc_gen_seaorm::generate(request).expect("generation should succeed");
+
+    // Should have no error
+    assert!(response.error.is_none(), "should have no error");
+
+    // Should generate one file
+    assert_eq!(response.file.len(), 1, "should generate one file");
+
+    let file = &response.file[0];
+    assert!(
+        file.name
+            .as_ref()
+            .unwrap()
+            .ends_with("user_service_storage.rs"),
+        "file should be named user_service_storage.rs"
+    );
+
+    let content = file.content.as_ref().unwrap();
+
+    // Check for trait definition
+    assert!(
+        content.contains("pub trait UserServiceStorage"),
+        "should have UserServiceStorage trait"
+    );
+
+    // Check for async_trait
+    assert!(
+        content.contains("async_trait"),
+        "should use async_trait attribute"
+    );
+
+    // Check for StorageError
+    assert!(
+        content.contains("StorageError"),
+        "should have StorageError enum"
+    );
+    assert!(
+        content.contains("Database"),
+        "should have Database error variant"
+    );
+    assert!(
+        content.contains("NotFound"),
+        "should have NotFound error variant"
+    );
+
+    // Check for method signatures
+    assert!(content.contains("get_user"), "should have get_user method");
+    assert!(
+        content.contains("create_user"),
+        "should have create_user method"
+    );
+    assert!(
+        content.contains("list_users"),
+        "should have list_users method"
+    );
+
+    // Check for request/response types
+    assert!(
+        content.contains("GetUserRequest"),
+        "should reference GetUserRequest"
+    );
+    assert!(content.contains("User"), "should reference User type");
+    assert!(
+        content.contains("ListUsersResponse"),
+        "should reference ListUsersResponse"
+    );
+
+    // Check for Result return type
+    assert!(content.contains("Result<"), "should return Result type");
+}
+
+#[test]
+fn test_skip_service_without_options() {
+    // Create a service without seaorm options
+    let service = ServiceDescriptorProto {
+        name: Some("InternalService".to_string()),
+        method: vec![MethodDescriptorProto {
+            name: Some("Ping".to_string()),
+            input_type: Some(".test.Request".to_string()),
+            output_type: Some(".test.Response".to_string()),
+            ..Default::default()
+        }],
+        ..Default::default()
+    };
+
+    let file_descriptor = FileDescriptorProto {
+        name: Some("test/internal.proto".to_string()),
+        package: Some("test".to_string()),
+        service: vec![service],
+        syntax: Some("proto3".to_string()),
+        ..Default::default()
+    };
+
+    let request = CodeGeneratorRequest {
+        file_to_generate: vec!["test/internal.proto".to_string()],
+        proto_file: vec![file_descriptor],
+        ..Default::default()
+    };
+
+    let response = protoc_gen_seaorm::generate(request).expect("generation should succeed");
+
+    assert!(response.error.is_none());
+    assert_eq!(
+        response.file.len(),
+        0,
+        "should generate no files for services without seaorm options"
+    );
+}
+
+#[test]
+fn test_generate_storage_with_custom_trait_name() {
+    let service_option = UninterpretedOption {
+        name: vec![NamePart {
+            name_part: "seaorm.service".to_string(),
+            is_extension: true,
+        }],
+        aggregate_value: Some("generate_storage: true, trait_name: \"AccountStore\"".to_string()),
+        ..Default::default()
+    };
+
+    let service = ServiceDescriptorProto {
+        name: Some("AccountService".to_string()),
+        method: vec![MethodDescriptorProto {
+            name: Some("GetAccount".to_string()),
+            input_type: Some(".test.GetAccountRequest".to_string()),
+            output_type: Some(".test.Account".to_string()),
+            ..Default::default()
+        }],
+        options: Some(ServiceOptions {
+            uninterpreted_option: vec![service_option],
+            ..Default::default()
+        }),
+    };
+
+    let file_descriptor = FileDescriptorProto {
+        name: Some("test/account.proto".to_string()),
+        package: Some("test".to_string()),
+        service: vec![service],
+        syntax: Some("proto3".to_string()),
+        ..Default::default()
+    };
+
+    let request = CodeGeneratorRequest {
+        file_to_generate: vec!["test/account.proto".to_string()],
+        proto_file: vec![file_descriptor],
+        ..Default::default()
+    };
+
+    let response = protoc_gen_seaorm::generate(request).expect("generation should succeed");
+
+    assert!(response.error.is_none());
+    assert_eq!(response.file.len(), 1);
+
+    let file = &response.file[0];
+    assert!(
+        file.name.as_ref().unwrap().ends_with("account_store.rs"),
+        "file should be named account_store.rs"
+    );
+
+    let content = file.content.as_ref().unwrap();
+    assert!(
+        content.contains("pub trait AccountStore"),
+        "should have custom trait name AccountStore"
     );
 }

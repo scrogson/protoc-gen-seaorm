@@ -1,7 +1,7 @@
 // SeaORM protobuf extension options
 //
-// These options are used to annotate protobuf messages and fields
-// with SeaORM entity configuration.
+// These options are used to annotate protobuf messages, fields, and services
+// with SeaORM entity and storage trait configuration.
 //
 // Usage:
 //   import "seaorm/options.proto";
@@ -9,8 +9,14 @@
 //   message User {
 //     option (seaorm.model).table_name = "users";
 //
-//     int64 id = 1 [(seaorm.field).primary_key = true];
-//     string email = 2 [(seaorm.field).unique = true];
+//     int64 id = 1 [(seaorm.column).primary_key = true];
+//     string email = 2 [(seaorm.column).unique = true];
+//   }
+//
+//   service UserService {
+//     option (seaorm.service).generate_storage = true;
+//
+//     rpc GetUser(GetUserRequest) returns (User);
 //   }
 
 syntax = "proto3";
@@ -154,6 +160,27 @@ message OneofOptions {
   string discriminator_column = 3;
 }
 
+// Service-level options for Storage trait generation
+message ServiceOptions {
+  // Generate a storage trait for this service
+  bool generate_storage = 1;
+
+  // Custom trait name (defaults to "{ServiceName}Storage")
+  string trait_name = 2;
+
+  // Skip this service (don't generate)
+  bool skip = 3;
+}
+
+// RPC method options for customizing individual methods
+message RpcMethodOptions {
+  // Skip this method (don't include in generated trait)
+  bool skip = 1;
+
+  // Custom method name in the generated trait
+  string method_name = 2;
+}
+
 // Extend google.protobuf.MessageOptions to add seaorm.model
 extend google.protobuf.MessageOptions {
   MessageOptions model = 50000;
@@ -177,4 +204,14 @@ extend google.protobuf.EnumValueOptions {
 // Extend google.protobuf.OneofOptions to add seaorm.oneof
 extend google.protobuf.OneofOptions {
   OneofOptions oneof = 50004;
+}
+
+// Extend google.protobuf.ServiceOptions to add seaorm.service
+extend google.protobuf.ServiceOptions {
+  ServiceOptions service = 50005;
+}
+
+// Extend google.protobuf.MethodOptions to add seaorm.rpc
+extend google.protobuf.MethodOptions {
+  RpcMethodOptions rpc = 50006;
 }
