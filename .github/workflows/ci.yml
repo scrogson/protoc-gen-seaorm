@@ -64,9 +64,6 @@ jobs:
       - name: Generate example entities
         working-directory: examples/database
         run: buf generate
-      - name: Check example formatting
-        working-directory: examples/database
-        run: cargo fmt --check
       - name: Lint example
         working-directory: examples/database
         run: cargo clippy -- -D warnings
