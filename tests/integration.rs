@@ -620,7 +620,6 @@ fn test_generate_entity_with_oneof_json() {
             name: Some("event_type".to_string()),
             options: Some(OneofOptions {
                 uninterpreted_option: vec![oneof_option],
-                ..Default::default()
             }),
         }],
         options: Some(MessageOptions {
