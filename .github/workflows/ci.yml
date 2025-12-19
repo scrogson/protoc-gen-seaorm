@@ -30,6 +30,8 @@ jobs:
         with:
           components: clippy
       - uses: Swatinem/rust-cache@v2
+      - name: Install protoc
+        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
       - name: Run clippy
         run: cargo clippy --all-targets -- -D warnings
 
@@ -40,6 +42,8 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
+      - name: Install protoc
+        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
       - name: Run tests
         run: cargo test --all
 
@@ -53,6 +57,8 @@ jobs:
       - uses: bufbuild/buf-action@v1
         with:
           setup_only: true
+      - name: Install protoc
+        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
       - name: Build protoc-gen-seaorm
         run: cargo build --release
       - name: Generate example entities
