@@ -52,6 +52,12 @@ const SERVICE_EXTENSION_NAME: &str = "seaorm.service";
 /// Extension name for rpc method options
 const RPC_EXTENSION_NAME: &str = "seaorm.rpc";
 
+/// Extension name for input field options
+const INPUT_EXTENSION_NAME: &str = "seaorm.input";
+
+/// Extension name for input message options
+const INPUT_MESSAGE_EXTENSION_NAME: &str = "seaorm.input_message";
+
 /// Lazily initialized descriptor pool with our extension definitions
 static DESCRIPTOR_POOL: Lazy<DescriptorPool> = Lazy::new(|| {
     DescriptorPool::decode(FILE_DESCRIPTOR_SET_BYTES).expect("Failed to decode file descriptor set")
@@ -78,6 +84,10 @@ struct OptionsCache {
     service_options: HashMap<(String, String), seaorm::ServiceOptions>,
     /// RPC method options: (file_name, service_name, method_name) -> RpcMethodOptions
     rpc_method_options: HashMap<(String, String, String), seaorm::RpcMethodOptions>,
+    /// Input field options: (file_name, message_name, field_number) -> InputOptions
+    input_options: HashMap<(String, String, i32), seaorm::InputOptions>,
+    /// Input message options: (file_name, message_name) -> InputMessageOptions
+    input_message_options: HashMap<(String, String), seaorm::InputMessageOptions>,
 }
 
 /// Pre-process raw CodeGeneratorRequest bytes to extract options using prost-reflect
@@ -211,6 +221,7 @@ fn extract_message_options(
 
                     if let Some(opts_cow) = field_msg.get_field_by_name("options") {
                         if let Some(opts_msg) = opts_cow.as_ref().as_message() {
+                            // Extract seaorm.column options
                             if let Some(ext_field) =
                                 DESCRIPTOR_POOL.get_extension_by_name("seaorm.column")
                             {
@@ -228,7 +239,44 @@ fn extract_message_options(
                                     }
                                 }
                             }
+
+                            // Extract seaorm.input options
+                            if let Some(ext_field) =
+                                DESCRIPTOR_POOL.get_extension_by_name(INPUT_EXTENSION_NAME)
+                            {
+                                if opts_msg.has_extension(&ext_field) {
+                                    let ext_value = opts_msg.get_extension(&ext_field);
+                                    if let Some(input_opts) = convert_to_input_options(&ext_value) {
+                                        cache.input_options.insert(
+                                            (
+                                                file_name.to_string(),
+                                                full_name.clone(),
+                                                field_number,
+                                            ),
+                                            input_opts,
+                                        );
+                                    }
+                                }
+                            }
                         }
+                    }
+                }
+            }
+        }
+    }
+
+    // Extract input_message options (seaorm.input_message)
+    if let Some(cow) = msg.get_field_by_name("options") {
+        if let Some(opts_msg) = cow.as_ref().as_message() {
+            if let Some(ext_field) =
+                DESCRIPTOR_POOL.get_extension_by_name(INPUT_MESSAGE_EXTENSION_NAME)
+            {
+                if opts_msg.has_extension(&ext_field) {
+                    let ext_value = opts_msg.get_extension(&ext_field);
+                    if let Some(input_msg_opts) = convert_to_input_message_options(&ext_value) {
+                        cache
+                            .input_message_options
+                            .insert((file_name.to_string(), full_name.clone()), input_msg_opts);
                     }
                 }
             }
@@ -531,6 +579,33 @@ pub fn get_cached_rpc_method_options(
                 service_name.to_string(),
                 method_name.to_string(),
             ))
+            .cloned()
+    })
+}
+
+/// Look up cached input field options for a given file, message name, and field number
+pub fn get_cached_input_options(
+    file_name: &str,
+    msg_name: &str,
+    field_number: i32,
+) -> Option<seaorm::InputOptions> {
+    OPTIONS_CACHE.read().ok().and_then(|cache| {
+        cache
+            .input_options
+            .get(&(file_name.to_string(), msg_name.to_string(), field_number))
+            .cloned()
+    })
+}
+
+/// Look up cached input message options for a given file and message name
+pub fn get_cached_input_message_options(
+    file_name: &str,
+    msg_name: &str,
+) -> Option<seaorm::InputMessageOptions> {
+    OPTIONS_CACHE.read().ok().and_then(|cache| {
+        cache
+            .input_message_options
+            .get(&(file_name.to_string(), msg_name.to_string()))
             .cloned()
     })
 }
@@ -1047,6 +1122,200 @@ fn convert_to_rpc_method_options(value: &Value) -> Option<seaorm::RpcMethodOptio
     if let Some(cow) = msg.get_field_by_name("method_name") {
         if let Value::String(s) = cow.as_ref() {
             result.method_name = s.clone();
+        }
+    }
+
+    Some(result)
+}
+
+/// Convert a prost-reflect Value to our InputOptions type
+fn convert_to_input_options(value: &Value) -> Option<seaorm::InputOptions> {
+    let msg = value.as_message()?;
+    let mut result = seaorm::InputOptions::default();
+
+    if let Some(cow) = msg.get_field_by_name("type") {
+        if let Value::String(s) = cow.as_ref() {
+            result.r#type = s.clone();
+        }
+    }
+
+    if let Some(cow) = msg.get_field_by_name("skip") {
+        if let Value::Bool(b) = cow.as_ref() {
+            result.skip = *b;
+        }
+    }
+
+    if let Some(cow) = msg.get_field_by_name("rename") {
+        if let Value::String(s) = cow.as_ref() {
+            result.rename = s.clone();
+        }
+    }
+
+    if let Some(cow) = msg.get_field_by_name("validate") {
+        if let Some(validate_msg) = cow.as_ref().as_message() {
+            result.validate = Some(convert_to_validation_rules(validate_msg));
+        }
+    }
+
+    Some(result)
+}
+
+/// Convert a prost-reflect DynamicMessage to ValidationRules
+fn convert_to_validation_rules(msg: &DynamicMessage) -> seaorm::ValidationRules {
+    let mut result = seaorm::ValidationRules::default();
+
+    if let Some(cow) = msg.get_field_by_name("email") {
+        if let Value::Bool(b) = cow.as_ref() {
+            result.email = *b;
+        }
+    }
+
+    if let Some(cow) = msg.get_field_by_name("url") {
+        if let Value::Bool(b) = cow.as_ref() {
+            result.url = *b;
+        }
+    }
+
+    if let Some(cow) = msg.get_field_by_name("ascii") {
+        if let Value::Bool(b) = cow.as_ref() {
+            result.ascii = *b;
+        }
+    }
+
+    if let Some(cow) = msg.get_field_by_name("alphanumeric") {
+        if let Value::Bool(b) = cow.as_ref() {
+            result.alphanumeric = *b;
+        }
+    }
+
+    if let Some(cow) = msg.get_field_by_name("pattern") {
+        if let Value::String(s) = cow.as_ref() {
+            result.pattern = s.clone();
+        }
+    }
+
+    if let Some(cow) = msg.get_field_by_name("required") {
+        if let Value::Bool(b) = cow.as_ref() {
+            result.required = *b;
+        }
+    }
+
+    if let Some(cow) = msg.get_field_by_name("skip") {
+        if let Value::Bool(b) = cow.as_ref() {
+            result.skip = *b;
+        }
+    }
+
+    if let Some(cow) = msg.get_field_by_name("custom") {
+        if let Value::String(s) = cow.as_ref() {
+            result.custom = s.clone();
+        }
+    }
+
+    // Only process length/range if the field was explicitly set
+    if msg.has_field_by_name("length") {
+        if let Some(cow) = msg.get_field_by_name("length") {
+            if let Some(length_msg) = cow.as_ref().as_message() {
+                result.length = convert_to_length_rule(length_msg);
+            }
+        }
+    }
+
+    if msg.has_field_by_name("range") {
+        if let Some(cow) = msg.get_field_by_name("range") {
+            if let Some(range_msg) = cow.as_ref().as_message() {
+                result.range = convert_to_range_rule(range_msg);
+            }
+        }
+    }
+
+    result
+}
+
+/// Convert a prost-reflect DynamicMessage to LengthRule
+/// Returns None if no constraints are set
+fn convert_to_length_rule(msg: &DynamicMessage) -> Option<seaorm::LengthRule> {
+    let mut result = seaorm::LengthRule::default();
+    let mut has_value = false;
+
+    // Use has_field_by_name to check if optional field was explicitly set
+    if msg.has_field_by_name("min") {
+        if let Some(cow) = msg.get_field_by_name("min") {
+            if let Value::U32(n) = cow.as_ref() {
+                result.min = Some(*n);
+                has_value = true;
+            }
+        }
+    }
+
+    if msg.has_field_by_name("max") {
+        if let Some(cow) = msg.get_field_by_name("max") {
+            if let Value::U32(n) = cow.as_ref() {
+                result.max = Some(*n);
+                has_value = true;
+            }
+        }
+    }
+
+    if has_value {
+        Some(result)
+    } else {
+        None
+    }
+}
+
+/// Convert a prost-reflect DynamicMessage to RangeRule
+/// Returns None if no constraints are set
+fn convert_to_range_rule(msg: &DynamicMessage) -> Option<seaorm::RangeRule> {
+    let mut result = seaorm::RangeRule::default();
+    let mut has_value = false;
+
+    // Use has_field_by_name to check if optional field was explicitly set
+    if msg.has_field_by_name("min") {
+        if let Some(cow) = msg.get_field_by_name("min") {
+            if let Value::I64(n) = cow.as_ref() {
+                result.min = Some(*n);
+                has_value = true;
+            }
+        }
+    }
+
+    if msg.has_field_by_name("max") {
+        if let Some(cow) = msg.get_field_by_name("max") {
+            if let Value::I64(n) = cow.as_ref() {
+                result.max = Some(*n);
+                has_value = true;
+            }
+        }
+    }
+
+    if has_value {
+        Some(result)
+    } else {
+        None
+    }
+}
+
+/// Convert a prost-reflect Value to our InputMessageOptions type
+fn convert_to_input_message_options(value: &Value) -> Option<seaorm::InputMessageOptions> {
+    let msg = value.as_message()?;
+    let mut result = seaorm::InputMessageOptions::default();
+
+    if let Some(cow) = msg.get_field_by_name("domain_type") {
+        if let Value::String(s) = cow.as_ref() {
+            result.domain_type = s.clone();
+        }
+    }
+
+    if let Some(cow) = msg.get_field_by_name("skip") {
+        if let Value::Bool(b) = cow.as_ref() {
+            result.skip = *b;
+        }
+    }
+
+    if let Some(cow) = msg.get_field_by_name("generate_try_from") {
+        if let Value::Bool(b) = cow.as_ref() {
+            result.generate_try_from = *b;
         }
     }
 

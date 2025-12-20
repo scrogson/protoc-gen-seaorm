@@ -24,7 +24,12 @@ pub fn generate(request: CodeGeneratorRequest) -> Result<CodeGeneratorResponse, 
 
         // Process each message in the file
         for message in &file_descriptor.message_type {
+            // Generate entity if has model options
             if let Some(generated) = crate::codegen::generate_entity(file_descriptor, message)? {
+                files.push(generated);
+            }
+            // Generate domain type if has input options
+            if let Some(generated) = crate::codegen::generate_domain(file_descriptor, message)? {
                 files.push(generated);
             }
         }

@@ -1,10 +1,15 @@
 //! Database Example Demo
 //!
 //! Demonstrates using the generated UsersStorage trait with SeaORM.
+//!
+//! This example shows the flow:
+//! 1. Proto request types (simulating gRPC input)
+//! 2. TryFrom conversion to validated domain types
+//! 3. Storage layer receives pre-validated domain types
 
 use sea_orm::Database;
 use seaorm_example::entity::example::prelude::*;
-use seaorm_example::entity::example::UsersStorage;
+use seaorm_example::entity::example::{CreateUser, GetUser, ListUsers, UsersStorage};
 use seaorm_example::SeaOrmUserStorage;
 
 #[tokio::main]
@@ -22,36 +27,45 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let storage = SeaOrmUserStorage::new(db);
 
     // Create users via the storage trait
+    // In a real gRPC handler, you would:
+    // 1. Receive CreateUserRequest from gRPC
+    // 2. Convert to CreateUser via TryFrom (which validates)
+    // 3. Pass validated CreateUser to storage
     println!("\nCreating users via UserServiceStorage...");
-    let alice = storage
-        .create_user(CreateUserRequest {
-            email: "alice@example.com".into(),
-            name: "Alice".into(),
-        })
-        .await?;
+
+    // Simulate incoming gRPC request
+    let request = CreateUserRequest {
+        email: "alice@example.com".into(),
+        name: "Alice".into(),
+    };
+    // Convert to domain type with validation
+    let create_user: CreateUser = request.try_into()?;
+    let alice = storage.create_user(create_user).await?;
     println!("Created user: {} (id={})", alice.name, alice.id);
 
-    let bob = storage
-        .create_user(CreateUserRequest {
-            email: "bob@example.com".into(),
-            name: "Bob".into(),
-        })
-        .await?;
+    let request = CreateUserRequest {
+        email: "bob@example.com".into(),
+        name: "Bob".into(),
+    };
+    let create_user: CreateUser = request.try_into()?;
+    let bob = storage.create_user(create_user).await?;
     println!("Created user: {} (id={})", bob.name, bob.id);
 
     // Get a user by ID
     println!("\nGetting user by ID...");
-    let user = storage.get_user(GetUserRequest { id: alice.id }).await?;
+    let request = GetUserRequest { id: alice.id };
+    let get_user: GetUser = request.try_into()?;
+    let user = storage.get_user(get_user).await?;
     println!("Found user: {} <{}>", user.name, user.email);
 
     // List users with pagination
     println!("\nListing users (page 0, size 10)...");
-    let response = storage
-        .list_users(ListUsersRequest {
-            page: 0,
-            page_size: 10,
-        })
-        .await?;
+    let request = ListUsersRequest {
+        page: 0,
+        page_size: 10,
+    };
+    let list_users: ListUsers = request.try_into()?;
+    let response = storage.list_users(list_users).await?;
     println!("Total users: {}", response.total);
     for u in response.users {
         println!("  - {} <{}>", u.name, u.email);
@@ -59,9 +73,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Try to get a non-existent user
     println!("\nTrying to get non-existent user (id=999)...");
-    match storage.get_user(GetUserRequest { id: 999 }).await {
+    let request = GetUserRequest { id: 999 };
+    let get_user: GetUser = request.try_into()?;
+    match storage.get_user(get_user).await {
         Ok(u) => println!("Found user: {}", u.name),
         Err(e) => println!("Error (expected): {}", e),
+    }
+
+    // Demonstrate validation failure
+    println!("\nDemonstrating validation failure (invalid email)...");
+    let request = CreateUserRequest {
+        email: "not-an-email".into(), // Invalid email format
+        name: "Test".into(),
+    };
+    match CreateUser::try_from(request) {
+        Ok(_) => println!("Unexpectedly succeeded!"),
+        Err(e) => println!("Validation error (expected): {}", e),
     }
 
     Ok(())

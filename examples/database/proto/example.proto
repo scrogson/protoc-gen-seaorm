@@ -2,19 +2,27 @@ syntax = "proto3";
 
 package example;
 
-import "seaorm/options.proto";
 import "google/protobuf/timestamp.proto";
+import "seaorm/options.proto";
 
 // User entity with one-to-many relationship to posts
 message User {
   option (seaorm.model) = {
     table_name: "users"
     relations: [
-      {name: "posts", type: RELATION_TYPE_HAS_MANY, related: "post", foreign_key: "author_id"}
+      {
+        name: "posts"
+        type: RELATION_TYPE_HAS_MANY
+        related: "post"
+        foreign_key: "author_id"
+      }
     ]
   };
 
-  int64 id = 1 [(seaorm.column) = { primary_key: true, auto_increment: true }];
+  int64 id = 1 [(seaorm.column) = {
+    primary_key: true
+    auto_increment: true
+  }];
   string email = 2 [(seaorm.column).unique = true];
   string name = 3;
   google.protobuf.Timestamp created_at = 4;
@@ -26,11 +34,19 @@ message Post {
   option (seaorm.model) = {
     table_name: "posts"
     relations: [
-      {name: "author", type: RELATION_TYPE_BELONGS_TO, related: "user", foreign_key: "author_id"}
+      {
+        name: "author"
+        type: RELATION_TYPE_BELONGS_TO
+        related: "user"
+        foreign_key: "author_id"
+      }
     ]
   };
 
-  int64 id = 1 [(seaorm.column) = { primary_key: true, auto_increment: true }];
+  int64 id = 1 [(seaorm.column) = {
+    primary_key: true
+    auto_increment: true
+  }];
   string title = 2;
   string content = 3;
   int64 author_id = 4;
@@ -40,17 +56,56 @@ message Post {
 
 // Request/Response messages for Users service
 message GetUserRequest {
-  int64 id = 1;
+  option (seaorm.input_message) = {
+    domain_type: "GetUser"
+    generate_try_from: true
+  };
+
+  int64 id = 1 [(seaorm.input) = {
+    validate: {
+      range: {min: 1}
+    }
+  }];
 }
 
 message CreateUserRequest {
-  string email = 1;
-  string name = 2;
+  option (seaorm.input_message) = {
+    domain_type: "CreateUser"
+    generate_try_from: true
+  };
+
+  string email = 1 [(seaorm.input) = {
+    validate: {email: true}
+  }];
+  string name = 2 [(seaorm.input) = {
+    validate: {
+      length: {
+        min: 1
+        max: 100
+      }
+    }
+  }];
 }
 
 message ListUsersRequest {
-  int32 page = 1;
-  int32 page_size = 2;
+  option (seaorm.input_message) = {
+    domain_type: "ListUsers"
+    generate_try_from: true
+  };
+
+  int32 page = 1 [(seaorm.input) = {
+    validate: {
+      range: {min: 0}
+    }
+  }];
+  int32 page_size = 2 [(seaorm.input) = {
+    validate: {
+      range: {
+        min: 1
+        max: 100
+      }
+    }
+  }];
 }
 
 message ListUsersResponse {
@@ -60,9 +115,7 @@ message ListUsersResponse {
 
 // Storage trait for user operations
 service Users {
-  option (seaorm.service) = {
-    generate_storage: true
-  };
+  option (seaorm.service) = {generate_storage: true};
 
   rpc GetUser(GetUserRequest) returns (User);
   rpc CreateUser(CreateUserRequest) returns (User);

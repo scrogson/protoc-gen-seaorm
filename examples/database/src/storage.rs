@@ -1,12 +1,17 @@
 //! Storage implementation for UserService
 //!
 //! Demonstrates implementing the generated storage trait with SeaORM.
+//!
+//! The storage trait uses validated domain types (`GetUser`, `CreateUser`, `ListUsers`)
+//! instead of raw proto request types. Validation happens in the gRPC handler layer
+//! via `TryFrom`, so the storage layer receives pre-validated input.
 
 use sea_orm::{DatabaseConnection, EntityTrait, PaginatorTrait, QueryOrder};
 
 use crate::entity::example::prelude::*;
 use crate::entity::example::user;
 use crate::entity::example::users_storage::{StorageError, UsersStorage};
+use crate::entity::example::{CreateUser, GetUser, ListUsers};
 
 /// SeaORM-backed implementation of UsersStorage
 pub struct SeaOrmUserStorage {
@@ -22,23 +27,18 @@ impl SeaOrmUserStorage {
 
 #[async_trait::async_trait]
 impl UsersStorage for SeaOrmUserStorage {
-    async fn get_user(&self, request: GetUserRequest) -> Result<User, StorageError> {
+    async fn get_user(&self, request: GetUser) -> Result<User, StorageError> {
+        // Domain type is already validated - id >= 1 guaranteed
         user::Entity::find_by_id(request.id)
             .one(&self.db)
             .await?
             .ok_or_else(|| StorageError::NotFound(format!("user with id {}", request.id)))
     }
 
-    async fn create_user(&self, request: CreateUserRequest) -> Result<User, StorageError> {
-        if request.email.is_empty() {
-            return Err(StorageError::InvalidArgument(
-                "email cannot be empty".into(),
-            ));
-        }
-        if request.name.is_empty() {
-            return Err(StorageError::InvalidArgument("name cannot be empty".into()));
-        }
-
+    async fn create_user(&self, request: CreateUser) -> Result<User, StorageError> {
+        // Domain type is already validated:
+        // - email is valid email format
+        // - name has length between 1 and 100
         let now = chrono::Utc::now();
         let user = user::ActiveModel::builder()
             .set_email(&request.email)
@@ -51,12 +51,12 @@ impl UsersStorage for SeaOrmUserStorage {
         Ok(user.into())
     }
 
-    async fn list_users(
-        &self,
-        request: ListUsersRequest,
-    ) -> Result<ListUsersResponse, StorageError> {
-        let page = request.page.max(0) as u64;
-        let page_size = request.page_size.clamp(1, 100) as u64;
+    async fn list_users(&self, request: ListUsers) -> Result<ListUsersResponse, StorageError> {
+        // Domain type is already validated:
+        // - page >= 0
+        // - page_size between 1 and 100
+        let page = request.page as u64;
+        let page_size = request.page_size as u64;
 
         let paginator = user::Entity::find()
             .order_by_asc(user::Column::Id)

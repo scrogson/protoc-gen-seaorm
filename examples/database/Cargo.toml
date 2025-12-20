@@ -17,6 +17,8 @@ chrono = { version = "0.4", features = ["serde"] }
 # Required for generated storage traits
 thiserror = "1.0"
 async-trait = "0.1"
+# Required for generated domain types with validation
+garde = { version = "0.21", features = ["derive", "email", "url"] }
 
 [dev-dependencies]
 tokio-test = "0.4"

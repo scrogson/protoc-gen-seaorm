@@ -4,6 +4,7 @@
 //! SeaORM 2.0 entity definitions and storage traits from Protocol Buffer messages.
 
 pub mod column;
+pub mod domain;
 pub mod entity;
 pub mod enum_gen;
 pub mod oneof;
@@ -44,4 +45,14 @@ pub fn generate_service(
     service: &ServiceDescriptorProto,
 ) -> Result<Option<File>, GeneratorError> {
     service::generate(file, service)
+}
+
+/// Generate a domain type with garde validation from a protobuf message
+///
+/// Returns None if the message has no input options
+pub fn generate_domain(
+    file: &FileDescriptorProto,
+    message: &DescriptorProto,
+) -> Result<Option<File>, GeneratorError> {
+    domain::generate(file, message)
 }

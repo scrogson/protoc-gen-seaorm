@@ -5,7 +5,8 @@
 //! database storage layers or mocked for testing.
 
 use crate::options::{
-    get_cached_rpc_method_options, get_cached_service_options, parse_service_options,
+    get_cached_input_message_options, get_cached_rpc_method_options, get_cached_service_options,
+    parse_service_options,
 };
 use crate::GeneratorError;
 use heck::{ToSnakeCase, ToUpperCamelCase};
@@ -133,8 +134,9 @@ fn generate_trait_methods(
             .map(|o| o.method_name.clone())
             .unwrap_or_else(|| method_name.to_snake_case());
 
-        // Extract input/output types
-        let input_type = extract_type_name(method.input_type.as_deref());
+        // Extract input/output types - check for domain type first
+        let raw_input_type = extract_type_name(method.input_type.as_deref());
+        let input_type = resolve_domain_type(file_name, &raw_input_type);
         let output_type = extract_type_name(method.output_type.as_deref());
 
         let method_ident = format_ident!("{}", rust_method_name);
@@ -149,6 +151,21 @@ fn generate_trait_methods(
     }
 
     Ok(result)
+}
+
+/// Resolve a message type to its domain type if one exists
+///
+/// If the message has `seaorm.input_message` options with a `domain_type`,
+/// returns the domain type name. Otherwise returns the original type.
+fn resolve_domain_type(file_name: &str, message_name: &str) -> String {
+    // Look up input_message options for this message
+    if let Some(opts) = get_cached_input_message_options(file_name, message_name) {
+        if !opts.domain_type.is_empty() {
+            return opts.domain_type;
+        }
+    }
+    // No domain type specified, use original
+    message_name.to_string()
 }
 
 /// Extract a Rust type name from a protobuf type path

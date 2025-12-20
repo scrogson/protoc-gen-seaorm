@@ -181,6 +181,70 @@ message RpcMethodOptions {
   string method_name = 2;
 }
 
+// =============================================================================
+// Input/Request validation options (generates domain types with garde)
+// =============================================================================
+
+// Length validation rule
+message LengthRule {
+  optional uint32 min = 1;
+  optional uint32 max = 2;
+}
+
+// Range validation rule for numeric types
+message RangeRule {
+  optional int64 min = 1;
+  optional int64 max = 2;
+}
+
+// Validation rules (maps to garde attributes)
+message ValidationRules {
+  // String validations
+  bool email = 1;
+  bool url = 2;
+  bool ascii = 3;
+  bool alphanumeric = 4;
+  string pattern = 5;  // regex pattern
+  LengthRule length = 6;
+
+  // Numeric validations
+  RangeRule range = 7;
+
+  // General
+  bool required = 8;
+  bool skip = 9;
+
+  // Custom validation (calls a custom function)
+  string custom = 10;
+}
+
+// Input field options for validation and type conversion
+message InputOptions {
+  // Target Rust type for conversion (e.g., "Uuid", "i32")
+  string type = 1;
+
+  // Validation rules (generates garde attributes)
+  ValidationRules validate = 2;
+
+  // Skip this field in domain type
+  bool skip = 3;
+
+  // Rename field in domain type
+  string rename = 4;
+}
+
+// Message-level options for domain type generation
+message InputMessageOptions {
+  // Generate a domain type with this name (defaults to message name without Request/Params suffix)
+  string domain_type = 1;
+
+  // Skip domain type generation for this message
+  bool skip = 2;
+
+  // Generate TryFrom implementation
+  bool generate_try_from = 3;
+}
+
 // Extend google.protobuf.MessageOptions to add seaorm.model
 extend google.protobuf.MessageOptions {
   MessageOptions model = 50000;
@@ -214,4 +278,14 @@ extend google.protobuf.ServiceOptions {
 // Extend google.protobuf.MethodOptions to add seaorm.rpc
 extend google.protobuf.MethodOptions {
   RpcMethodOptions rpc = 50006;
+}
+
+// Extend google.protobuf.FieldOptions to add seaorm.input
+extend google.protobuf.FieldOptions {
+  InputOptions input = 50007;
+}
+
+// Extend google.protobuf.MessageOptions to add seaorm.input_message
+extend google.protobuf.MessageOptions {
+  InputMessageOptions input_message = 50008;
 }

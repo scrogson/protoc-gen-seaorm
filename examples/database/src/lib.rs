@@ -22,9 +22,19 @@ pub mod entity {
         pub mod user;
         pub mod users_storage;
 
+        // Domain types (validated input types)
+        pub mod create_user;
+        pub mod get_user;
+        pub mod list_users;
+
         pub use post::Entity as Post;
         pub use user::Entity as User;
         pub use users_storage::{StorageError, UsersStorage};
+
+        // Re-export domain types
+        pub use create_user::CreateUser;
+        pub use get_user::GetUser;
+        pub use list_users::ListUsers;
     }
 
     pub use example::*;
