@@ -1284,3 +1284,474 @@ fn test_generate_storage_with_custom_trait_name() {
         "should have custom trait name AccountStore"
     );
 }
+
+// =============================================================================
+// Domain Type / Input Validation Tests
+// =============================================================================
+
+/// Create a test request for domain type generation with input_message options
+fn create_domain_type_test_request() -> CodeGeneratorRequest {
+    // Create the input_message option for domain type generation
+    let input_message_option = UninterpretedOption {
+        name: vec![NamePart {
+            name_part: "seaorm.input_message".to_string(),
+            is_extension: true,
+        }],
+        aggregate_value: Some("domain_type: \"CreateUser\", generate_try_from: true".to_string()),
+        ..Default::default()
+    };
+
+    // Create input option for email validation
+    let email_input_option = UninterpretedOption {
+        name: vec![NamePart {
+            name_part: "seaorm.input".to_string(),
+            is_extension: true,
+        }],
+        aggregate_value: Some("validate: { email: true }".to_string()),
+        ..Default::default()
+    };
+
+    // Create input option for length validation
+    let length_input_option = UninterpretedOption {
+        name: vec![NamePart {
+            name_part: "seaorm.input".to_string(),
+            is_extension: true,
+        }],
+        aggregate_value: Some("validate: { length: { min: 1, max: 100 } }".to_string()),
+        ..Default::default()
+    };
+
+    // Create the CreateUserRequest message
+    let create_user_request = DescriptorProto {
+        name: Some("CreateUserRequest".to_string()),
+        field: vec![
+            FieldDescriptorProto {
+                name: Some("email".to_string()),
+                number: Some(1),
+                r#type: Some(Type::String.into()),
+                options: Some(prost_types::FieldOptions {
+                    uninterpreted_option: vec![email_input_option],
+                    ..Default::default()
+                }),
+                ..Default::default()
+            },
+            FieldDescriptorProto {
+                name: Some("name".to_string()),
+                number: Some(2),
+                r#type: Some(Type::String.into()),
+                options: Some(prost_types::FieldOptions {
+                    uninterpreted_option: vec![length_input_option],
+                    ..Default::default()
+                }),
+                ..Default::default()
+            },
+        ],
+        options: Some(MessageOptions {
+            uninterpreted_option: vec![input_message_option],
+            ..Default::default()
+        }),
+        ..Default::default()
+    };
+
+    let file_descriptor = FileDescriptorProto {
+        name: Some("test/request.proto".to_string()),
+        package: Some("test".to_string()),
+        message_type: vec![create_user_request],
+        syntax: Some("proto3".to_string()),
+        ..Default::default()
+    };
+
+    CodeGeneratorRequest {
+        file_to_generate: vec!["test/request.proto".to_string()],
+        proto_file: vec![file_descriptor],
+        ..Default::default()
+    }
+}
+
+#[test]
+fn test_generate_domain_type() {
+    let request = create_domain_type_test_request();
+    let response = protoc_gen_seaorm::generate(request).expect("generation should succeed");
+
+    assert!(response.error.is_none(), "should have no error");
+    assert_eq!(response.file.len(), 1, "should generate one file");
+
+    let file = &response.file[0];
+    assert!(
+        file.name.as_ref().unwrap().ends_with("create_user.rs"),
+        "file should be named create_user.rs"
+    );
+
+    let content = file.content.as_ref().unwrap();
+
+    // Check for domain struct
+    assert!(
+        content.contains("pub struct CreateUser"),
+        "should have CreateUser struct"
+    );
+
+    // Check for garde derive
+    assert!(
+        content.contains("garde::Validate"),
+        "should have garde::Validate derive"
+    );
+
+    // Check for email validation
+    assert!(
+        content.contains("#[garde(email)]"),
+        "should have email validation"
+    );
+
+    // Check for length validation
+    // Debug: print content for debugging
+    if !content.contains("garde(length(min = 1u32, max = 100u32))") {
+        eprintln!("Generated content:\n{}", content);
+    }
+    assert!(
+        content.contains("garde(length(min = 1u32, max = 100u32))"),
+        "should have length validation with correct u32 type"
+    );
+
+    // Check for TryFrom implementation
+    assert!(
+        content.contains("impl TryFrom<CreateUserRequest>"),
+        "should have TryFrom implementation"
+    );
+
+    // Check for DomainError
+    assert!(
+        content.contains("pub enum DomainError"),
+        "should have DomainError enum"
+    );
+
+    // Check for validate call
+    assert!(
+        content.contains("domain.validate()"),
+        "should call validate()"
+    );
+}
+
+#[test]
+fn test_generate_domain_type_with_range_validation() {
+    // Create input_message option
+    let input_message_option = UninterpretedOption {
+        name: vec![NamePart {
+            name_part: "seaorm.input_message".to_string(),
+            is_extension: true,
+        }],
+        aggregate_value: Some("domain_type: \"GetUser\", generate_try_from: true".to_string()),
+        ..Default::default()
+    };
+
+    // Create input option for range validation on i64 field
+    let range_i64_option = UninterpretedOption {
+        name: vec![NamePart {
+            name_part: "seaorm.input".to_string(),
+            is_extension: true,
+        }],
+        aggregate_value: Some("validate: { range: { min: 1 } }".to_string()),
+        ..Default::default()
+    };
+
+    // Create input option for range validation on i32 field
+    let range_i32_option = UninterpretedOption {
+        name: vec![NamePart {
+            name_part: "seaorm.input".to_string(),
+            is_extension: true,
+        }],
+        aggregate_value: Some("validate: { range: { min: 0, max: 100 } }".to_string()),
+        ..Default::default()
+    };
+
+    let message = DescriptorProto {
+        name: Some("GetUserRequest".to_string()),
+        field: vec![
+            FieldDescriptorProto {
+                name: Some("id".to_string()),
+                number: Some(1),
+                r#type: Some(Type::Int64.into()),
+                options: Some(prost_types::FieldOptions {
+                    uninterpreted_option: vec![range_i64_option],
+                    ..Default::default()
+                }),
+                ..Default::default()
+            },
+            FieldDescriptorProto {
+                name: Some("page".to_string()),
+                number: Some(2),
+                r#type: Some(Type::Int32.into()),
+                options: Some(prost_types::FieldOptions {
+                    uninterpreted_option: vec![range_i32_option],
+                    ..Default::default()
+                }),
+                ..Default::default()
+            },
+        ],
+        options: Some(MessageOptions {
+            uninterpreted_option: vec![input_message_option],
+            ..Default::default()
+        }),
+        ..Default::default()
+    };
+
+    let file_descriptor = FileDescriptorProto {
+        name: Some("test/get_user.proto".to_string()),
+        package: Some("test".to_string()),
+        message_type: vec![message],
+        syntax: Some("proto3".to_string()),
+        ..Default::default()
+    };
+
+    let request = CodeGeneratorRequest {
+        file_to_generate: vec!["test/get_user.proto".to_string()],
+        proto_file: vec![file_descriptor],
+        ..Default::default()
+    };
+
+    let response = protoc_gen_seaorm::generate(request).expect("generation should succeed");
+
+    assert!(response.error.is_none());
+    assert_eq!(response.file.len(), 1);
+
+    let content = response.file[0].content.as_ref().unwrap();
+
+    // Check for correct i64 range type
+    assert!(
+        content.contains("range(min = 1i64)"),
+        "should have i64 range for int64 field"
+    );
+
+    // Check for correct i32 range type
+    assert!(
+        content.contains("range(min = 0i32, max = 100i32)"),
+        "should have i32 range for int32 field"
+    );
+}
+
+#[test]
+fn test_skip_domain_type_without_input_options() {
+    // Create a message without input_message options
+    let message = DescriptorProto {
+        name: Some("PlainRequest".to_string()),
+        field: vec![FieldDescriptorProto {
+            name: Some("field".to_string()),
+            number: Some(1),
+            r#type: Some(Type::String.into()),
+            ..Default::default()
+        }],
+        ..Default::default()
+    };
+
+    let file_descriptor = FileDescriptorProto {
+        name: Some("test/plain.proto".to_string()),
+        package: Some("test".to_string()),
+        message_type: vec![message],
+        syntax: Some("proto3".to_string()),
+        ..Default::default()
+    };
+
+    let request = CodeGeneratorRequest {
+        file_to_generate: vec!["test/plain.proto".to_string()],
+        proto_file: vec![file_descriptor],
+        ..Default::default()
+    };
+
+    let response = protoc_gen_seaorm::generate(request).expect("generation should succeed");
+
+    assert!(response.error.is_none());
+    // No files should be generated - no seaorm.model or seaorm.input_message
+    assert_eq!(
+        response.file.len(),
+        0,
+        "should not generate domain type for messages without input options"
+    );
+}
+
+#[test]
+fn test_generate_domain_type_with_multiple_validations() {
+    let input_message_option = UninterpretedOption {
+        name: vec![NamePart {
+            name_part: "seaorm.input_message".to_string(),
+            is_extension: true,
+        }],
+        aggregate_value: Some("domain_type: \"RegisterUser\", generate_try_from: true".to_string()),
+        ..Default::default()
+    };
+
+    // URL validation
+    let url_option = UninterpretedOption {
+        name: vec![NamePart {
+            name_part: "seaorm.input".to_string(),
+            is_extension: true,
+        }],
+        aggregate_value: Some("validate: { url: true }".to_string()),
+        ..Default::default()
+    };
+
+    // ASCII validation
+    let ascii_option = UninterpretedOption {
+        name: vec![NamePart {
+            name_part: "seaorm.input".to_string(),
+            is_extension: true,
+        }],
+        aggregate_value: Some("validate: { ascii: true }".to_string()),
+        ..Default::default()
+    };
+
+    // Pattern validation
+    let pattern_option = UninterpretedOption {
+        name: vec![NamePart {
+            name_part: "seaorm.input".to_string(),
+            is_extension: true,
+        }],
+        aggregate_value: Some(r#"validate: { pattern: "^[a-z]+$" }"#.to_string()),
+        ..Default::default()
+    };
+
+    let message = DescriptorProto {
+        name: Some("RegisterUserRequest".to_string()),
+        field: vec![
+            FieldDescriptorProto {
+                name: Some("website".to_string()),
+                number: Some(1),
+                r#type: Some(Type::String.into()),
+                options: Some(prost_types::FieldOptions {
+                    uninterpreted_option: vec![url_option],
+                    ..Default::default()
+                }),
+                ..Default::default()
+            },
+            FieldDescriptorProto {
+                name: Some("username".to_string()),
+                number: Some(2),
+                r#type: Some(Type::String.into()),
+                options: Some(prost_types::FieldOptions {
+                    uninterpreted_option: vec![ascii_option],
+                    ..Default::default()
+                }),
+                ..Default::default()
+            },
+            FieldDescriptorProto {
+                name: Some("slug".to_string()),
+                number: Some(3),
+                r#type: Some(Type::String.into()),
+                options: Some(prost_types::FieldOptions {
+                    uninterpreted_option: vec![pattern_option],
+                    ..Default::default()
+                }),
+                ..Default::default()
+            },
+        ],
+        options: Some(MessageOptions {
+            uninterpreted_option: vec![input_message_option],
+            ..Default::default()
+        }),
+        ..Default::default()
+    };
+
+    let file_descriptor = FileDescriptorProto {
+        name: Some("test/register.proto".to_string()),
+        package: Some("test".to_string()),
+        message_type: vec![message],
+        syntax: Some("proto3".to_string()),
+        ..Default::default()
+    };
+
+    let request = CodeGeneratorRequest {
+        file_to_generate: vec!["test/register.proto".to_string()],
+        proto_file: vec![file_descriptor],
+        ..Default::default()
+    };
+
+    let response = protoc_gen_seaorm::generate(request).expect("generation should succeed");
+
+    assert!(response.error.is_none());
+    assert_eq!(response.file.len(), 1);
+
+    let content = response.file[0].content.as_ref().unwrap();
+
+    // Check for URL validation
+    assert!(
+        content.contains("#[garde(url)]"),
+        "should have url validation"
+    );
+
+    // Check for ASCII validation
+    assert!(
+        content.contains("#[garde(ascii)]"),
+        "should have ascii validation"
+    );
+
+    // Check for pattern validation
+    assert!(
+        content.contains("garde(pattern("),
+        "should have pattern validation"
+    );
+}
+
+#[test]
+fn test_generate_domain_type_without_try_from() {
+    // Create input_message option without generate_try_from
+    let input_message_option = UninterpretedOption {
+        name: vec![NamePart {
+            name_part: "seaorm.input_message".to_string(),
+            is_extension: true,
+        }],
+        aggregate_value: Some("domain_type: \"QueryParams\"".to_string()),
+        ..Default::default()
+    };
+
+    let message = DescriptorProto {
+        name: Some("QueryRequest".to_string()),
+        field: vec![FieldDescriptorProto {
+            name: Some("query".to_string()),
+            number: Some(1),
+            r#type: Some(Type::String.into()),
+            ..Default::default()
+        }],
+        options: Some(MessageOptions {
+            uninterpreted_option: vec![input_message_option],
+            ..Default::default()
+        }),
+        ..Default::default()
+    };
+
+    let file_descriptor = FileDescriptorProto {
+        name: Some("test/query.proto".to_string()),
+        package: Some("test".to_string()),
+        message_type: vec![message],
+        syntax: Some("proto3".to_string()),
+        ..Default::default()
+    };
+
+    let request = CodeGeneratorRequest {
+        file_to_generate: vec!["test/query.proto".to_string()],
+        proto_file: vec![file_descriptor],
+        ..Default::default()
+    };
+
+    let response = protoc_gen_seaorm::generate(request).expect("generation should succeed");
+
+    assert!(response.error.is_none());
+    assert_eq!(response.file.len(), 1);
+
+    let content = response.file[0].content.as_ref().unwrap();
+
+    // Should have struct
+    assert!(
+        content.contains("pub struct QueryParams"),
+        "should have QueryParams struct"
+    );
+
+    // Should NOT have TryFrom (generate_try_from defaults to false)
+    assert!(
+        !content.contains("impl TryFrom"),
+        "should not have TryFrom when generate_try_from is false"
+    );
+
+    // Should NOT have DomainError
+    assert!(
+        !content.contains("DomainError"),
+        "should not have DomainError when generate_try_from is false"
+    );
+}

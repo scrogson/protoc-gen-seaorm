@@ -636,6 +636,22 @@ pub fn parse_field_options(field: &FieldDescriptorProto) -> Option<seaorm::Field
     parse_field_options_from_uninterpreted(&opts.uninterpreted_option)
 }
 
+/// Parse SeaORM input options from a FieldDescriptorProto
+pub fn parse_input_options(field: &FieldDescriptorProto) -> Option<seaorm::InputOptions> {
+    let opts = field.options.as_ref()?;
+
+    // Fallback to uninterpreted_option for tests
+    parse_input_options_from_uninterpreted(&opts.uninterpreted_option)
+}
+
+/// Parse SeaORM input_message options from a DescriptorProto
+pub fn parse_input_message_options(desc: &DescriptorProto) -> Option<seaorm::InputMessageOptions> {
+    let opts = desc.options.as_ref()?;
+
+    // Fallback to uninterpreted_option for tests
+    parse_input_message_options_from_uninterpreted(&opts.uninterpreted_option)
+}
+
 /// Parse SeaORM enum options from an EnumDescriptorProto
 pub fn parse_enum_options(enum_desc: &EnumDescriptorProto) -> Option<seaorm::EnumOptions> {
     let opts = enum_desc.options.as_ref()?;
@@ -1452,6 +1468,48 @@ fn parse_service_options_from_uninterpreted(
     }
 }
 
+/// Parse InputOptions from uninterpreted options
+fn parse_input_options_from_uninterpreted(
+    uninterpreted: &[UninterpretedOption],
+) -> Option<seaorm::InputOptions> {
+    let mut result = seaorm::InputOptions::default();
+    let mut found = false;
+
+    for opt in uninterpreted {
+        if is_extension_option(opt, INPUT_EXTENSION_NAME) {
+            found = true;
+            apply_input_option(&mut result, opt);
+        }
+    }
+
+    if found {
+        Some(result)
+    } else {
+        None
+    }
+}
+
+/// Parse InputMessageOptions from uninterpreted options
+fn parse_input_message_options_from_uninterpreted(
+    uninterpreted: &[UninterpretedOption],
+) -> Option<seaorm::InputMessageOptions> {
+    let mut result = seaorm::InputMessageOptions::default();
+    let mut found = false;
+
+    for opt in uninterpreted {
+        if is_extension_option(opt, INPUT_MESSAGE_EXTENSION_NAME) {
+            found = true;
+            apply_input_message_option(&mut result, opt);
+        }
+    }
+
+    if found {
+        Some(result)
+    } else {
+        None
+    }
+}
+
 /// Check if an uninterpreted option matches our extension name
 fn is_extension_option(opt: &UninterpretedOption, extension_name: &str) -> bool {
     // The name parts form a path like: (seaorm.model).table_name
@@ -1565,6 +1623,34 @@ fn apply_service_option(result: &mut seaorm::ServiceOptions, opt: &Uninterpreted
             "generate_storage" => result.generate_storage = parse_bool_option(opt),
             "trait_name" => result.trait_name = parse_string_option(opt),
             "skip" => result.skip = parse_bool_option(opt),
+            _ => {}
+        }
+    }
+}
+
+/// Apply a single uninterpreted option to InputOptions
+fn apply_input_option(result: &mut seaorm::InputOptions, opt: &UninterpretedOption) {
+    if let Some(aggregate) = opt.aggregate_value.as_ref() {
+        parse_aggregate_into_input_options(result, aggregate);
+    } else if let Some(field_name) = get_subfield_name(opt) {
+        match field_name {
+            "type" => result.r#type = parse_string_option(opt),
+            "skip" => result.skip = parse_bool_option(opt),
+            "rename" => result.rename = parse_string_option(opt),
+            _ => {}
+        }
+    }
+}
+
+/// Apply a single uninterpreted option to InputMessageOptions
+fn apply_input_message_option(result: &mut seaorm::InputMessageOptions, opt: &UninterpretedOption) {
+    if let Some(aggregate) = opt.aggregate_value.as_ref() {
+        parse_aggregate_into_input_message_options(result, aggregate);
+    } else if let Some(field_name) = get_subfield_name(opt) {
+        match field_name {
+            "domain_type" => result.domain_type = parse_string_option(opt),
+            "skip" => result.skip = parse_bool_option(opt),
+            "generate_try_from" => result.generate_try_from = parse_bool_option(opt),
             _ => {}
         }
     }
@@ -1770,6 +1856,171 @@ fn parse_aggregate_into_service_options(result: &mut seaorm::ServiceOptions, agg
     }
 }
 
+fn parse_aggregate_into_input_options(result: &mut seaorm::InputOptions, aggregate: &str) {
+    for part in split_aggregate_parts(aggregate) {
+        let (key, value) = match part.split_once(':') {
+            Some((k, v)) => (k.trim(), v.trim()),
+            None => continue,
+        };
+
+        match key {
+            "type" => result.r#type = parse_quoted_string(value),
+            "skip" => result.skip = value == "true",
+            "rename" => result.rename = parse_quoted_string(value),
+            "validate" => {
+                // Parse nested validate object
+                if let Some(validate) = parse_validation_rules(value) {
+                    result.validate = Some(validate);
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
+fn parse_aggregate_into_input_message_options(
+    result: &mut seaorm::InputMessageOptions,
+    aggregate: &str,
+) {
+    for part in split_aggregate_parts(aggregate) {
+        let (key, value) = match part.split_once(':') {
+            Some((k, v)) => (k.trim(), v.trim()),
+            None => continue,
+        };
+
+        match key {
+            "domain_type" => result.domain_type = parse_quoted_string(value),
+            "skip" => result.skip = value == "true",
+            "generate_try_from" => result.generate_try_from = value == "true",
+            _ => {}
+        }
+    }
+}
+
+/// Parse validation rules from aggregate string like "{ email: true, length: { min: 1, max: 100 } }"
+fn parse_validation_rules(value: &str) -> Option<seaorm::ValidationRules> {
+    let value = value.trim();
+    // Strip outer braces if present
+    let inner = if value.starts_with('{') && value.ends_with('}') {
+        &value[1..value.len() - 1]
+    } else {
+        value
+    };
+
+    let mut result = seaorm::ValidationRules::default();
+
+    for part in split_aggregate_parts(inner) {
+        let (key, val) = match part.split_once(':') {
+            Some((k, v)) => (k.trim(), v.trim()),
+            None => continue,
+        };
+
+        match key {
+            "email" => result.email = val == "true",
+            "url" => result.url = val == "true",
+            "ascii" => result.ascii = val == "true",
+            "alphanumeric" => result.alphanumeric = val == "true",
+            "pattern" => result.pattern = parse_quoted_string(val),
+            "required" => result.required = val == "true",
+            "skip" => result.skip = val == "true",
+            "custom" => result.custom = parse_quoted_string(val),
+            "length" => {
+                result.length = parse_length_rule(val);
+            }
+            "range" => {
+                result.range = parse_range_rule(val);
+            }
+            _ => {}
+        }
+    }
+
+    Some(result)
+}
+
+/// Parse length rule from "{ min: 1, max: 100 }"
+fn parse_length_rule(value: &str) -> Option<seaorm::LengthRule> {
+    let value = value.trim();
+    let inner = if value.starts_with('{') && value.ends_with('}') {
+        &value[1..value.len() - 1]
+    } else {
+        value
+    };
+
+    let mut result = seaorm::LengthRule::default();
+    let mut has_value = false;
+
+    for part in split_aggregate_parts(inner) {
+        let (key, val) = match part.split_once(':') {
+            Some((k, v)) => (k.trim(), v.trim()),
+            None => continue,
+        };
+
+        match key {
+            "min" => {
+                if let Ok(n) = val.parse::<u32>() {
+                    result.min = Some(n);
+                    has_value = true;
+                }
+            }
+            "max" => {
+                if let Ok(n) = val.parse::<u32>() {
+                    result.max = Some(n);
+                    has_value = true;
+                }
+            }
+            _ => {}
+        }
+    }
+
+    if has_value {
+        Some(result)
+    } else {
+        None
+    }
+}
+
+/// Parse range rule from "{ min: 1, max: 100 }"
+fn parse_range_rule(value: &str) -> Option<seaorm::RangeRule> {
+    let value = value.trim();
+    let inner = if value.starts_with('{') && value.ends_with('}') {
+        &value[1..value.len() - 1]
+    } else {
+        value
+    };
+
+    let mut result = seaorm::RangeRule::default();
+    let mut has_value = false;
+
+    for part in split_aggregate_parts(inner) {
+        let (key, val) = match part.split_once(':') {
+            Some((k, v)) => (k.trim(), v.trim()),
+            None => continue,
+        };
+
+        match key {
+            "min" => {
+                if let Ok(n) = val.parse::<i64>() {
+                    result.min = Some(n);
+                    has_value = true;
+                }
+            }
+            "max" => {
+                if let Ok(n) = val.parse::<i64>() {
+                    result.max = Some(n);
+                    has_value = true;
+                }
+            }
+            _ => {}
+        }
+    }
+
+    if has_value {
+        Some(result)
+    } else {
+        None
+    }
+}
+
 /// Split aggregate value into simple parts (only top-level commas, not inside braces)
 fn split_aggregate_parts_simple(aggregate: &str) -> Vec<&str> {
     let mut parts = Vec::new();
@@ -1927,8 +2178,7 @@ fn parse_relation_type(s: &str) -> i32 {
 
 /// Split aggregate value into parts, respecting nested braces
 fn split_aggregate_parts(aggregate: &str) -> Vec<&str> {
-    // Simple split by comma for now - could be enhanced for nested structures
-    aggregate.split(',').collect()
+    split_aggregate_parts_simple(aggregate)
 }
 
 /// Parse a quoted string value, removing quotes

@@ -4,7 +4,10 @@
 //! `seaorm.input` field options. The generated types include garde validation
 //! attributes and TryFrom implementations for converting from proto requests.
 
-use crate::options::{get_cached_input_message_options, get_cached_input_options, seaorm};
+use crate::options::{
+    get_cached_input_message_options, get_cached_input_options, parse_input_message_options,
+    parse_input_options, seaorm,
+};
 use crate::GeneratorError;
 use heck::ToSnakeCase;
 use proc_macro2::TokenStream;
@@ -21,11 +24,15 @@ pub fn generate(
     let message_name = message.name.as_deref().unwrap_or("");
 
     // Check if this message has input_message options
-    let input_message_opts = get_cached_input_message_options(file_name, message_name);
+    // First try cached options (from preprocessed request bytes)
+    // Then fallback to parsing from uninterpreted options (for tests)
+    let input_message_opts = get_cached_input_message_options(file_name, message_name)
+        .or_else(|| parse_input_message_options(message));
 
     // Check if any field has input options
     let has_input_fields = message.field.iter().any(|f| {
         get_cached_input_options(file_name, message_name, f.number.unwrap_or(0)).is_some()
+            || parse_input_options(f).is_some()
     });
 
     // Skip if no input options found
@@ -155,7 +162,9 @@ fn generate_domain_fields(
         let field_name = field.name.as_deref().unwrap_or("");
 
         // Get input options for this field
-        let input_opts = get_cached_input_options(file_name, message_name, field_number);
+        // First try cached options, then fallback to parsing from uninterpreted options
+        let input_opts = get_cached_input_options(file_name, message_name, field_number)
+            .or_else(|| parse_input_options(field));
 
         // Skip if marked to skip
         if input_opts.as_ref().map(|o| o.skip).unwrap_or(false) {
